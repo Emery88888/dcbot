@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>完成付款 — 雙效合一交易機器人</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .pay-shell {
+      max-width: 560px;
+      margin: 48px auto;
+      padding: 0 16px 48px;
+    }
+    .pay-card {
+      background: var(--card-bg, #101b2c);
+      border: 1px solid rgba(230,244,255,.12);
+      border-radius: 20px;
+      padding: 32px 28px;
+    }
+    .pay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .pay-title { font-size: 18px; font-weight: 700; }
+    .order-summary {
+      background: rgba(20,31,53,.6);
+      border: 1px solid rgba(230,244,255,.1);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 20px;
+      font-size: 14px;
+      color: #b2bfd5;
+    }
+    .order-summary b { color: #eef8ff; }
+    .chain-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .chain-btn {
+      padding: 12px;
+      border-radius: 10px;
+      border: 2px solid rgba(230,244,255,.15);
+      background: transparent;
+      color: #b2bfd5;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+    }
+    .chain-btn.active {
+      border-color: #70f3ff;
+      color: #70f3ff;
+      background: rgba(112,243,255,.08);
+    }
+    .address-box {
+      background: rgba(20,31,53,.8);
+      border: 1px solid rgba(112,243,255,.25);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .address-text {
+      font-family: monospace;
+      font-size: 12px;
+      color: #70f3ff;
+      word-break: break-all;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 7px;
+      border: 1px solid rgba(112,243,255,.4);
+      background: transparent;
+      color: #70f3ff;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: rgba(112,243,255,.1); }
+    .field-group { margin-bottom: 16px; }
+    .field-group label {
+      display: block;
+      font-size: 13px;
+      color: #b2bfd5;
+      margin-bottom: 6px;
+    }
+    .field-group input, .field-group textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 9px;
+      border: 1px solid rgba(230,244,255,.15);
+      background: rgba(20,31,53,.6);
+      color: #eef8ff;
+      font-size: 14px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field-group input:focus, .field-group textarea:focus {
+      border-color: rgba(112,243,255,.5);
+    }
+    .field-group textarea { resize: vertical; min-height: 80px; }
+    .optional-tag {
+      font-size: 11px;
+      color: #7a8fa5;
+      margin-left: 6px;
+    }
+    .upload-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed rgba(230,244,255,.2);
+      border-radius: 10px;
+      padding: 24px;
+      cursor: pointer;
+      transition: border-color .2s;
+      color: #7a8fa5;
+      font-size: 14px;
+      text-align: center;
+      min-height: 90px;
+    }
+    .upload-label:hover { border-color: rgba(112,243,255,.4); color: #b2bfd5; }
+    .upload-label.has-file { border-color: rgba(138,255,180,.4); color: #8affb4; }
+    #screenshot-input { display: none; }
+    .submit-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 11px;
+      border: none;
+      background: linear-gradient(135deg, #8affb4, #70f3ff);
+      color: #0a1628;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: opacity .2s;
+    }
+    .submit-btn:hover { opacity: .9; }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .pay-message {
+      margin-top: 14px;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 20px;
+      text-align: center;
+    }
+    .success-box {
+      display: none;
+      background: rgba(138,255,180,.07);
+      border: 1px solid rgba(138,255,180,.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      text-align: center;
+    }
+    .success-box.show { display: block; }
+    .success-box h3 { color: #8affb4; margin: 0 0 8px; font-size: 18px; }
+    .success-box p { color: #b2bfd5; font-size: 14px; margin: 4px 0; }
+    .dc-join-btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 24px;
+      border-radius: 9px;
+      background: linear-gradient(135deg,#8affb4,#70f3ff);
+      color: #0a1628;
+      font-weight: 800;
+      text-decoration: none;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="logo" href="index.html">
+        <span class="logo-text">雙效合一交易機器人</span>
+      </a>
+    </header>
+
+    <main class="pay-shell">
+      <div class="pay-card">
+        <div class="pay-header">
+          <span class="pay-title">完成付款</span>
+          <span class="panel-status">驗證中</span>
+        </div>
+
+        <!-- 訂單摘要 -->
+        <div class="order-summary">
+          <div>方案：<b id="sum-plan">—</b></div>
+          <div>數量：<b id="sum-qty">—</b></div>
+          <div>金額：<b id="sum-amount">—</b></div>
+        </div>
+
+        <!-- 選鏈 -->
+        <div style="font-size:13px;color:#b2bfd5;margin-bottom:10px;">選擇繳費鏈</div>
+        <div class="chain-row">
+          <button type="button" class="chain-btn active" data-chain="BEP20">BEP20 (BSC)</button>
+          <button type="button" class="chain-btn" data-chain="TRC20">TRC20 (TRX)</button>
+        </div>
+
+        <!-- 地址顯示 -->
+        <div class="address-box">
+          <span class="address-text" id="pay-address">0x3C602BA23061F760F3a86f25698a6696804c2254</span>
+          <button type="button" class="copy-btn" id="copy-addr-btn">複製</button>
+        </div>
+
+        <!-- 填寫資料 -->
+        <form id="pay-form">
+          <div class="field-group">
+            <label for="f-name">付款人名稱</label>
+            <input id="f-name" type="text" placeholder="請輸入您的名稱" required />
+          </div>
+          <div class="field-group">
+            <label for="f-dc">DC 名稱（Discord）</label>
+            <input id="f-dc" type="text" placeholder="例：username#1234 或 @username" required />
+          </div>
+          <div class="field-group">
+            <label>
+              交易紀錄截圖
+            </label>
+            <label class="upload-label" id="upload-label" for="screenshot-input">
+              <span id="upload-hint">📎 點此上傳截圖（JPG / PNG）</span>
+            </label>
+            <input id="screenshot-input" type="file" accept="image/*" />
+          </div>
+          <div class="field-group">
+            <label for="f-ref">推薦碼 <span class="optional-tag">（選填）</span></label>
+            <input id="f-ref" type="text" placeholder="如有推薦碼請填寫" />
+            <span id="discount-note" style="font-size:12px;margin-top:6px;display:block;min-height:16px;"></span>
+          </div>
+
+          <button type="submit" class="submit-btn" id="pay-submit">確認送出</button>
+        </form>
+
+        <div class="pay-message" id="pay-message"></div>
+
+        <!-- 成功框 -->
+        <div class="success-box" id="success-box">
+          <h3>訂單已送出！</h3>
+          <p id="suc-order-id"></p>
+          <p style="color:#7a8fa5;font-size:12px;margin-top:8px;">管理員審核後將開放群組連結，請耐心等候。<br>24小時以上未審核請私訊客服。</p>
+          <a href="https://discord.gg/JvFTfFY5KZ" target="_blank" rel="noopener" class="dc-join-btn">前往 Discord</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <span class="logo-text">雙效合一交易機器人</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://line.me/R/ti/p/@emery888" target="_blank" rel="noopener">官方 LINE @emery888</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="payment.js"></script>
+</body>
+</html>
