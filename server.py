@@ -11,31 +11,41 @@ ROOT = Path.cwd()
 DATA_FILE = ROOT / 'orders.json'
 _lock = threading.Lock()
 
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'emery888')
+
 PAYMENT_ADDRESSES = {
     'BEP20': '0x3C602BA23061F760F3a86f25698a6696804c2254',
     'TRC20': 'TVDXooB8mC6AD1W68yNLuauQ39cQSJKkQ3'
 }
 
-# --- 持久化：從檔案載入訂單 ---
+DEFAULT_PROMOS = {
+    'VIP888': {'code': 'VIP888', 'type': 'fixed', 'value': 10, 'active': True, 'used_count': 0},
+    'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'active': True, 'used_count': 0}
+}
+
+# --- 持久化儲存 ---
 def _load_data():
+    orders = {}
+    promos = dict(DEFAULT_PROMOS)
+    tokens = {}
     if DATA_FILE.exists():
         try:
             raw = json.loads(DATA_FILE.read_text(encoding='utf-8'))
             orders = raw.get('orders', {})
+            promos = raw.get('promos', DEFAULT_PROMOS)
             tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
-            return orders, tokens
         except Exception:
             pass
-    return {}, {}
+    return orders, promos, tokens
 
 def _save_data():
     with _lock:
         DATA_FILE.write_text(
-            json.dumps({'orders': ORDERS}, ensure_ascii=False, indent=2),
+            json.dumps({'orders': ORDERS, 'promos': PROMOS}, ensure_ascii=False, indent=2),
             encoding='utf-8'
         )
 
-ORDERS, JOIN_TOKENS = _load_data()
+ORDERS, PROMOS, JOIN_TOKENS = _load_data()
 
 class ApiHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -48,7 +58,7 @@ class ApiHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token')
         self.end_headers()
         self.wfile.write(body)
 
@@ -59,7 +69,7 @@ class ApiHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token')
         self.send_header('Content-Length', '0')
         self.end_headers()
 
@@ -72,120 +82,12 @@ class ApiHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _join_page_html(self, order):
-        return f"""
-<!doctype html>
-<html lang=\"zh-Hant\">
-<head>
-  <meta charset=\"UTF-8\" />
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
-  <title>付款驗證成功</title>
-  <style>
-    :root {{
-      --bg: #07111f;
-      --panel: #101b2c;
-      --line: rgba(230, 244, 255, 0.12);
-      --text: #eef8ff;
-      --muted: #b2bfd5;
-      --green: #8affb4;
-      --blue: #70f3ff;
-      --shadow: rgba(0, 0, 0, 0.3);
-      --font: \"Inter\", \"Segoe UI\", \"PingFang TC\", \"Microsoft JhengHei\", Arial, sans-serif;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font);
-      color: var(--text);
-      background: radial-gradient(circle at 70% 10%, rgba(33, 111, 216, 0.4), transparent 30%), var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }}
-    .shell {{
-      width: min(680px, calc(100vw - 32px));
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      box-shadow: 0 24px 80px var(--shadow);
-      padding: 28px;
-      position: relative;
-      overflow: hidden;
-    }}
-    .shell::before {{
-      content: \"\";
-      position: absolute;
-      width: 140px;
-      height: 140px;
-      border-radius: 50%;
-      border: 1px solid var(--blue);
-      left: -40px;
-      top: -40px;
-      filter: blur(12px);
-    }}
-    .kicker {{
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0.2em;
-      color: var(--blue);
-      text-transform: uppercase;
-    }}
-    h1 {{
-      margin: 10px 0 12px;
-      font-size: clamp(34px, 4vw, 50px);
-      line-height: 1.2;
-    }}
-    .message {{
-      color: var(--muted);
-      font-size: 16px;
-      line-height: 1.7;
-    }}
-    .card {{
-      margin-top: 20px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      padding: 16px;
-      background: rgba(20, 31, 53, .72);
-    }}
-    .card-row {{
-      color: var(--muted);
-      font-size: 14px;
-      margin: 8px 0;
-    }}
-    .card-row b {{ color: var(--text); }}
-    .join-btn {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 48px;
-      padding: 0 26px;
-      margin-top: 14px;
-      border-radius: 12px;
-      border: 1px solid var(--green);
-      background: linear-gradient(135deg, var(--green), var(--blue));
-      color: var(--panel);
-      font-weight: 900;
-      text-decoration: none;
-    }}
-  </style>
-</head>
-<body>
-  <main class=\"shell\">
-    <div class=\"kicker\">付款驗證</div>
-    <h1>歡迎加入 DC 群</h1>
-    <div class=\"message\">付款資料已完成驗證，請點擊下方連結進入群組。</div>
-    <section class=\"card\">
-      <div class=\"card-row\"><b>訂單：</b>{order['order_id']}</div>
-      <div class=\"card-row\"><b>方案：</b>{order['plan']}</div>
-      <div class=\"card-row\"><b>網路：</b>{order['network']}</div>
-      <div class=\"card-row\"><b>群組：</b>{order['group']}</div>
-      <a class="join-btn" href="{order['group']}">進入群組</a>
-    </section>
-  </main>
-</body>
-</html>
-"""
+    def _check_admin_auth(self):
+        auth = self.headers.get('Authorization', '')
+        token = self.headers.get('X-Admin-Token', '')
+        if auth.startswith('Bearer '):
+            token = auth[7:].strip()
+        return token == ADMIN_PASSWORD
 
     def _parse_json_body(self):
         try:
@@ -199,123 +101,248 @@ class ApiHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != '/api/orders':
-            self._send_json(404, {'ok': False, 'message': 'Not found'})
-            return
 
-        data, error = self._parse_json_body()
-        if error:
-            self._send_json(400, {'ok': False, 'message': error})
-            return
-        if not isinstance(data, dict):
-            self._send_json(400, {'ok': False, 'message': 'Invalid JSON payload'})
-            return
-
-        name = str(data.get('name', '')).strip()
-        contact = str(data.get('contact', '')).strip()
-        plan = str(data.get('plan', '1M')).strip()
-        group = str(data.get('group', 'https://discord.gg/JvFTfFY5KZ')).strip() or 'https://discord.gg/JvFTfFY5KZ'
-        network = str(data.get('network', 'BEP20')).strip().upper() or 'BEP20'
-        quantity = int(data.get('quantity') or 1)
-        if quantity < 1 or quantity > 20:
-            self._send_json(400, {'ok': False, 'message': 'Quantity must be between 1 and 20'})
-            return
-
-        if plan == '1Y':
-            if quantity > 2:
-                self._send_json(400, {'ok': False, 'message': '1Y plan quantity must be between 1 and 2'})
+        # 1. 管理員登入
+        if parsed.path == '/api/admin/login':
+            data, error = self._parse_json_body()
+            if error or not isinstance(data, dict):
+                self._send_json(400, {'ok': False, 'message': '請求格式錯誤'})
                 return
-            base_amount = 1188
-        elif plan == '1M':
-            base_amount = 99
-        else:
-            self._send_json(400, {'ok': False, 'message': 'Unsupported plan'})
+            pwd = str(data.get('password', '')).strip()
+            if pwd == ADMIN_PASSWORD:
+                self._send_json(200, {'ok': True, 'token': ADMIN_PASSWORD, 'message': '登入成功'})
+            else:
+                self._send_json(401, {'ok': False, 'message': '管理員密碼錯誤'})
             return
 
-        amount = base_amount * quantity
-
-        if not name:
-            self._send_json(400, {'ok': False, 'message': 'Missing required fields'})
+        # 2. 優惠碼即時驗證 (公開給前端)
+        if parsed.path == '/api/promo/verify':
+            data, error = self._parse_json_body()
+            if error or not isinstance(data, dict):
+                self._send_json(400, {'ok': False, 'message': '格式錯誤'})
+                return
+            code = str(data.get('code', '')).strip().upper()
+            amount = float(data.get('amount', 0))
+            if not code:
+                self._send_json(400, {'ok': False, 'message': '請提供優惠碼'})
+                return
+            promo = PROMOS.get(code)
+            if not promo or not promo.get('active', True):
+                self._send_json(200, {'ok': True, 'valid': False, 'message': '優惠碼不存在或已停用'})
+                return
+            p_type = promo.get('type', 'fixed')
+            p_val = float(promo.get('value', 0))
+            if p_type == 'percent':
+                discount = round(amount * (p_val / 100.0), 2)
+                msg = f'優惠碼已套用！享 {p_val}% 折扣 (折抵 {discount}U)'
+            else:
+                discount = min(amount, p_val)
+                msg = f'優惠碼已套用！現折 {discount}U'
+            final_amount = max(0.0, amount - discount)
+            self._send_json(200, {
+                'ok': True,
+                'valid': True,
+                'code': code,
+                'discount': discount,
+                'final_amount': final_amount,
+                'message': msg
+            })
             return
-        if network not in PAYMENT_ADDRESSES:
-            self._send_json(400, {'ok': False, 'message': 'Unsupported payment network'})
+
+        # 3. 管理員：更新訂單審核狀態
+        if parsed.path.startswith('/api/admin/orders/') and parsed.path.endswith('/status'):
+            if not self._check_admin_auth():
+                self._send_json(401, {'ok': False, 'message': '未授權'})
+                return
+            parts = [p for p in parsed.path.split('/') if p]
+            if len(parts) >= 4:
+                order_id = parts[3]
+                order = ORDERS.get(order_id)
+                if not order:
+                    self._send_json(404, {'ok': False, 'message': '找不到此訂單'})
+                    return
+                data, _ = self._parse_json_body()
+                status = str(data.get('status', '')).strip()
+                if status in ['pending', 'approved', 'rejected']:
+                    order['status'] = status
+                    _save_data()
+                    self._send_json(200, {'ok': True, 'message': '狀態已更新', 'order': order})
+                    return
+                self._send_json(400, {'ok': False, 'message': '無效的狀態'})
+                return
+
+        # 4. 管理員：優惠碼管理 (新增/啟用/停用/刪除)
+        if parsed.path == '/api/admin/promos':
+            if not self._check_admin_auth():
+                self._send_json(401, {'ok': False, 'message': '未授權'})
+                return
+            data, error = self._parse_json_body()
+            if error or not isinstance(data, dict):
+                self._send_json(400, {'ok': False, 'message': '請求格式錯誤'})
+                return
+            action = data.get('action', 'create')
+            code = str(data.get('code', '')).strip().upper()
+            if not code:
+                self._send_json(400, {'ok': False, 'message': '代碼不能為空'})
+                return
+            if action == 'create':
+                p_type = str(data.get('type', 'fixed'))
+                p_val = float(data.get('value', 10))
+                PROMOS[code] = {
+                    'code': code,
+                    'type': p_type,
+                    'value': p_val,
+                    'active': True,
+                    'used_count': 0
+                }
+                _save_data()
+                self._send_json(200, {'ok': True, 'message': f'優惠碼 {code} 已建立', 'promos': list(PROMOS.values())})
+                return
+            elif action == 'toggle':
+                if code in PROMOS:
+                    PROMOS[code]['active'] = not PROMOS[code].get('active', True)
+                    _save_data()
+                    self._send_json(200, {'ok': True, 'message': '狀態已切換', 'promos': list(PROMOS.values())})
+                    return
+                self._send_json(404, {'ok': False, 'message': '優惠碼不存在'})
+                return
+            elif action == 'delete':
+                if code in PROMOS:
+                    del PROMOS[code]
+                    _save_data()
+                    self._send_json(200, {'ok': True, 'message': f'優惠碼 {code} 已刪除', 'promos': list(PROMOS.values())})
+                    return
+                self._send_json(404, {'ok': False, 'message': '優惠碼不存在'})
+                return
+
+        # 5. 建立訂單 (用戶前端提交)
+        if parsed.path == '/api/orders':
+            data, error = self._parse_json_body()
+            if error or not isinstance(data, dict):
+                self._send_json(400, {'ok': False, 'message': 'Invalid JSON payload'})
+                return
+
+            name = str(data.get('name', '')).strip()
+            contact = str(data.get('contact', '')).strip()
+            plan = str(data.get('plan', '1M')).strip()
+            group = str(data.get('group', 'https://discord.gg/JvFTfFY5KZ')).strip() or 'https://discord.gg/JvFTfFY5KZ'
+            network = str(data.get('network', 'BEP20')).strip().upper() or 'BEP20'
+            quantity = int(data.get('quantity') or 1)
+            screenshot = str(data.get('screenshot', '')).strip()
+            referral = str(data.get('referral', '')).strip().upper()
+
+            if quantity < 1 or quantity > 20:
+                self._send_json(400, {'ok': False, 'message': 'Quantity must be between 1 and 20'})
+                return
+
+            if plan == '1Y':
+                if quantity > 2:
+                    self._send_json(400, {'ok': False, 'message': '1Y plan quantity must be between 1 and 2'})
+                    return
+                base_amount = 1188
+            elif plan == '1M':
+                base_amount = 99
+            else:
+                self._send_json(400, {'ok': False, 'message': 'Unsupported plan'})
+                return
+
+            subtotal = base_amount * quantity
+            discount = 0.0
+
+            # 套用優惠碼
+            if referral and referral in PROMOS and PROMOS[referral].get('active', True):
+                promo = PROMOS[referral]
+                p_type = promo.get('type', 'fixed')
+                p_val = float(promo.get('value', 0))
+                if p_type == 'percent':
+                    discount = round(subtotal * (p_val / 100.0), 2)
+                else:
+                    discount = min(float(subtotal), p_val)
+                promo['used_count'] = promo.get('used_count', 0) + 1
+
+            amount = max(0.0, subtotal - discount)
+
+            if not name:
+                self._send_json(400, {'ok': False, 'message': '請填寫付款人名稱'})
+                return
+            if network not in PAYMENT_ADDRESSES:
+                self._send_json(400, {'ok': False, 'message': '不支援的付款網路'})
+                return
+
+            order_id = 'DX' + str(uuid.uuid4())[:8].upper()
+            join_token = str(uuid.uuid4())
+
+            order = {
+                'order_id': order_id,
+                'name': name,
+                'contact': contact,
+                'plan': plan,
+                'quantity': quantity,
+                'group': group,
+                'network': network,
+                'subtotal': subtotal,
+                'discount': discount,
+                'amount': amount,
+                'address': PAYMENT_ADDRESSES[network],
+                'status': 'pending',
+                'created_at': int(time.time()),
+                'join_token': join_token,
+                'used': False,
+                'referral': referral if discount > 0 else '',
+                'screenshot': screenshot
+            }
+
+            ORDERS[order_id] = order
+            JOIN_TOKENS[join_token] = order_id
+            _save_data()
+
+            host = self.headers.get('Host', '127.0.0.1:8001')
+            scheme = 'https' if not host.startswith('127') else 'http'
+            join_link = f'{scheme}://{host}/api/join/{order_id}/{join_token}'
+
+            self._send_json(200, {
+                'ok': True,
+                'message': '訂單已建立，等待管理員審核。',
+                'order_id': order_id,
+                'payment_network': network,
+                'payment_address': order['address'],
+                'amount': amount,
+                'join_link': join_link,
+                'status': 'pending'
+            })
             return
-        if amount <= 0:
-            self._send_json(400, {'ok': False, 'message': 'Invalid payment amount'})
-            return
 
-        order_id = 'DX' + str(uuid.uuid4())[:8].upper()
-        join_token = str(uuid.uuid4())
-
-        order = {
-            'order_id': order_id,
-            'name': name,
-            'contact': contact,
-            'plan': plan,
-            'quantity': quantity,
-            'group': group,
-            'network': network,
-            'amount': amount,
-            'address': PAYMENT_ADDRESSES[network],
-            'status': 'pending',
-            'created_at': int(time.time()),
-            'join_token': join_token,
-            'used': False
-        }
-
-        ORDERS[order_id] = order
-        JOIN_TOKENS[join_token] = order_id
-        _save_data()
-
-        # 動態取得 host，部署到雲端時也能正確產生連結
-        host = self.headers.get('Host', '127.0.0.1:8001')
-        scheme = 'https' if not host.startswith('127') else 'http'
-        join_link = f'{scheme}://{host}/api/join/{order_id}/{join_token}'
-
-        self._send_json(200, {
-            'ok': True,
-            'message': 'Order created. Waiting for payment confirmation.',
-            'order_id': order_id,
-            'payment_network': network,
-            'payment_address': order['address'],
-            'amount': amount,
-            'join_link': join_link,
-            'group_invite_url': group,
-            'expires_at': int(time.time()) + 3600,
-            'status': 'pending'
-        })
+        self._send_json(404, {'ok': False, 'message': 'Not found'})
 
     def do_GET(self):
         parsed = urlparse(self.path)
 
         if parsed.path == '/api/health':
-            self._send_json(200, {'ok': True, 'message': 'local api ready'})
+            self._send_json(200, {'ok': True, 'message': 'ready'})
             return
 
-        # GET /api/join/<order_id>/<token>
-        if parsed.path.startswith('/api/join/'):
-            parts = [p for p in parsed.path.split('/') if p]
-            if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'join':
-                order_id = parts[2]
-                token = parts[3]
-                order = ORDERS.get(order_id)
-                if not order:
-                    self._send_html(404, '<html><body><h1>Order not found</h1></body></html>')
-                    return
-                if order.get('join_token') != token:
-                    self._send_html(403, '<html><body><h1>Invalid one-time token</h1></body></html>')
-                    return
-                if order.get('used'):
-                    self._send_html(410, '<html><body><h1>One-time link has been used</h1></body></html>')
-                    return
-
-                order['status'] = 'paid'
-                order['used'] = True
-                _save_data()
-                self._send_html(200, self._join_page_html(order))
+        # 管理員 API：獲取所有訂單
+        if parsed.path == '/api/admin/orders':
+            if not self._check_admin_auth():
+                self._send_json(401, {'ok': False, 'message': '未授權'})
                 return
+            order_list = sorted(list(ORDERS.values()), key=lambda x: x.get('created_at', 0), reverse=True)
+            self._send_json(200, {'ok': True, 'orders': order_list})
+            return
 
-        # query order status by id with optional contact checking
+        # 管理員 API：獲取所有優惠碼
+        if parsed.path == '/api/admin/promos':
+            if not self._check_admin_auth():
+                self._send_json(401, {'ok': False, 'message': '未授權'})
+                return
+            self._send_json(200, {'ok': True, 'promos': list(PROMOS.values())})
+            return
+
+        # 導向 /admin 到 admin.html
+        if parsed.path == '/admin':
+            self.path = '/admin.html'
+
+        # 查詢單一訂單狀態
         if parsed.path.startswith('/api/orders/'):
             parts = [p for p in parsed.path.split('/') if p]
             if len(parts) >= 3 and parts[0] == 'api' and parts[1] == 'orders':
@@ -324,73 +351,36 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 if not order:
                     self._send_json(404, {'ok': False, 'message': 'Order not found'})
                     return
-
-                query = parse_qs(parsed.query)
-                contact = (query.get('contact') or [''])[0].strip().lower()
-                if contact and order.get('contact', '').strip().lower() != contact:
-                    self._send_json(403, {'ok': False, 'message': 'Contact mismatch'})
-                    return
-
-                self._send_json(200, {
-                    'ok': True,
-                    'message': 'Order found',
-                    'order': {
-                        'order_id': order['order_id'],
-                        'name': order['name'],
-                        'contact': order['contact'],
-                        'plan': order['plan'],
-                        'group': order['group'],
-                        'network': order['network'],
-                        'amount': order['amount'],
-                        'address': order['address'],
-                        'status': order['status'],
-                        'created_at': order['created_at'],
-                        'used': bool(order.get('used'))
-                    }
-                })
+                self._send_json(200, {'ok': True, 'order': order})
                 return
 
         return super().do_GET()
 
 if __name__ == '__main__':
-    import socket
-    import sys
-
     PORT = int(os.environ.get('PORT', 8001))
-    IS_CLOUD = 'PORT' in os.environ  # Railway/Render 會設定 PORT 環境變數
+    IS_CLOUD = 'PORT' in os.environ
 
     if not IS_CLOUD:
-        # 本機防止重複啟動
+        import socket
+        import sys
         test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         test_sock.settimeout(1)
         result = test_sock.connect_ex(('127.0.0.1', PORT))
         test_sock.close()
         if result == 0:
-            print('[ERROR] Port ' + str(PORT) + ' already in use. Server is already running!')
-            print('        To restart, close the existing server window first.')
+            print('[ERROR] Port ' + str(PORT) + ' already in use.')
             sys.exit(1)
-
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-        except Exception:
-            local_ip = 'your-ip'
 
         print('=' * 50)
         print('[OK] Server started (local)')
-        print('     Local:   http://127.0.0.1:' + str(PORT))
-        print('     Network: http://' + local_ip + ':' + str(PORT))
-        print('     Press Ctrl+C to stop')
+        print(f'     Web:   http://127.0.0.1:{PORT}')
+        print(f'     Admin: http://127.0.0.1:{PORT}/admin.html')
         print('=' * 50)
     else:
-        print('[OK] Server started on Railway, port ' + str(PORT))
+        print('[OK] Server started on cloud, port ' + str(PORT))
 
     server = ThreadingHTTPServer(('0.0.0.0', PORT), ApiHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print('\n[STOP] Server stopped.')
-
-

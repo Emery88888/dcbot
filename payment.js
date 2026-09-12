@@ -62,31 +62,110 @@ function fallbackCopy(text, cb) {
   document.body.removeChild(ta);
 }
 
-// --- 推薦碼折扣 (預留，管理後台設定後套用) ---
+// --- 優惠碼 / 推薦碼即時驗證折抵 ---
 var refInput = document.getElementById('f-ref');
 var discountNote = document.getElementById('discount-note');
-if (refInput && discountNote) {
-  refInput.addEventListener('input', function() {
-    var code = refInput.value.trim();
-    if (code) {
-      discountNote.textContent = '推薦碼已記錄，折扣將由管理員審核後套用。';
-      discountNote.style.color = '#8affb4';
+var applyPromoBtn = document.getElementById('apply-promo-btn');
+var appliedPromoCode = '';
+
+async function verifyPromo() {
+  if (!refInput) return;
+  var code = refInput.value.trim().toUpperCase();
+  if (!code) {
+    appliedPromoCode = '';
+    finalAmount = baseAmount;
+    document.getElementById('sum-amount').textContent = finalAmount + 'U';
+    if (discountNote) discountNote.textContent = '';
+    return;
+  }
+  if (discountNote) {
+    discountNote.style.color = '#70f3ff';
+    discountNote.textContent = '驗證優惠碼中...';
+  }
+  try {
+    var res = await fetch(API_BASE + '/api/promo/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code, amount: baseAmount })
+    });
+    var d = await res.json();
+    if (d.ok && d.valid) {
+      appliedPromoCode = d.code;
+      finalAmount = d.final_amount;
+      document.getElementById('sum-amount').innerHTML = finalAmount + 'U <small style="color:#8affb4;">(已折抵 ' + d.discount + 'U)</small>';
+      if (discountNote) {
+        discountNote.style.color = '#8affb4';
+        discountNote.textContent = '✅ ' + d.message;
+      }
     } else {
-      discountNote.textContent = '';
+      appliedPromoCode = '';
+      finalAmount = baseAmount;
+      document.getElementById('sum-amount').textContent = finalAmount + 'U';
+      if (discountNote) {
+        discountNote.style.color = '#ffb86c';
+        discountNote.textContent = '❌ ' + (d.message || '無效或已停用的優惠碼');
+      }
+    }
+  } catch(err) {
+    if (discountNote) {
+      discountNote.style.color = '#ffb86c';
+      discountNote.textContent = '驗證失敗，無法連線至伺服器';
+    }
+  }
+}
+
+if (applyPromoBtn) {
+  applyPromoBtn.addEventListener('click', verifyPromo);
+}
+if (refInput) {
+  refInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      verifyPromo();
     }
   });
 }
 
-// --- 截圖上傳預覽 ---
+// --- 截圖上傳預覽與 Base64 轉換 ---
 var screenshotInput = document.getElementById('screenshot-input');
 var uploadLabel     = document.getElementById('upload-label');
 var uploadHint      = document.getElementById('upload-hint');
-var screenshotFile  = null;
+var screenshotBase64 = '';
+
 screenshotInput.addEventListener('change', function() {
   if (this.files && this.files[0]) {
-    screenshotFile = this.files[0];
-    uploadHint.textContent = '已選擇：' + screenshotFile.name;
+    var file = this.files[0];
+    uploadHint.textContent = '已選擇：' + file.name;
     uploadLabel.classList.add('has-file');
+
+    // 壓縮並轉為 Base64
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var maxW = 1200;
+        var maxH = 1200;
+        var w = img.width;
+        var h = img.height;
+        if (w > maxW || h > maxH) {
+          if (w > h) {
+            h = Math.round((h * maxW) / w);
+            w = maxW;
+          } else {
+            w = Math.round((w * maxH) / h);
+            h = maxH;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        screenshotBase64 = canvas.toDataURL('image/jpeg', 0.8);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 });
 
@@ -96,11 +175,11 @@ var payMessage = document.getElementById('pay-message');
 var paySubmit  = document.getElementById('pay-submit');
 var successBox = document.getElementById('success-box');
 
-payForm.addEventListener('submit', function(e) {
+payForm.addEventListener('submit', async function(e) {
   e.preventDefault();
-  var name    = document.getElementById('f-name').value.trim();
-  var dcName  = document.getElementById('f-dc').value.trim();
-  var refCode = document.getElementById('f-ref').value.trim();
+  var name   = document.getElementById('f-name').value.trim();
+  var dcName = document.getElementById('f-dc').value.trim();
+  var refCode = refInput ? refInput.value.trim().toUpperCase() : '';
 
   if (!name) {
     payMessage.style.color = '#ffcf89';
@@ -112,7 +191,7 @@ payForm.addEventListener('submit', function(e) {
     payMessage.textContent = '請填寫 DC 名稱。';
     return;
   }
-  if (!screenshotFile) {
+  if (!screenshotBase64) {
     payMessage.style.color = '#ffcf89';
     payMessage.textContent = '請上傳交易紀錄截圖。';
     return;
@@ -122,35 +201,36 @@ payForm.addEventListener('submit', function(e) {
   payMessage.style.color = '#8affb4';
   payMessage.textContent = '送出中，請稍候...';
 
-  fetch(API_BASE + '/api/orders', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: name,
-      contact: dcName,
-      plan: plan,
-      quantity: quantity,
-      network: selectedChain,
-      group: 'https://discord.gg/JvFTfFY5KZ',
-      referral: refCode || null
-    })
-  })
-  .then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
-  .then(function(res) {
-    if (!res.ok || !res.data.ok) {
+  try {
+    var resp = await fetch(API_BASE + '/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        contact: dcName,
+        plan: plan,
+        quantity: quantity,
+        network: selectedChain,
+        group: 'https://discord.gg/JvFTfFY5KZ',
+        referral: appliedPromoCode || refCode || null,
+        screenshot: screenshotBase64
+      })
+    });
+    var d = await resp.json();
+    if (!resp.ok || !d.ok) {
       payMessage.style.color = '#ffcf89';
-      payMessage.textContent = res.data.message || '送出失敗，請稍後再試。';
+      payMessage.textContent = d.message || '送出失敗，請稍後再試。';
       paySubmit.disabled = false;
       return;
     }
+
     payMessage.textContent = '';
     payForm.style.display = 'none';
-    document.getElementById('suc-order-id').textContent = '訂單編號：' + res.data.order_id;
+    document.getElementById('suc-order-id').textContent = '訂單編號：' + d.order_id;
     successBox.classList.add('show');
-  })
-  .catch(function() {
+  } catch(err) {
     payMessage.style.color = '#ffcf89';
-    payMessage.textContent = '無法連線到伺服器，請確認本地伺服器已啟動。';
+    payMessage.textContent = '無法連線到伺服器，請確認伺服器已啟動。';
     paySubmit.disabled = false;
-  });
+  }
 });

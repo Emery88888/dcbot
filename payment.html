@@ -236,8 +236,11 @@
             <input id="screenshot-input" type="file" accept="image/*" />
           </div>
           <div class="field-group">
-            <label for="f-ref">推薦碼 <span class="optional-tag">（選填）</span></label>
-            <input id="f-ref" type="text" placeholder="如有推薦碼請填寫" />
+            <label for="f-ref">優惠碼 / 推薦碼 <span class="optional-tag">（選填）</span></label>
+            <div style="display:flex;gap:8px;">
+              <input id="f-ref" type="text" placeholder="如有優惠碼請填寫（例：VIP888）" style="flex:1;" />
+              <button type="button" id="apply-promo-btn" style="padding:0 16px;border-radius:9px;border:1px solid rgba(112,243,255,.4);background:rgba(112,243,255,.1);color:#70f3ff;font-weight:700;cursor:pointer;white-space:nowrap;">套用</button>
+            </div>
             <span id="discount-note" style="font-size:12px;margin-top:6px;display:block;min-height:16px;"></span>
           </div>
 
