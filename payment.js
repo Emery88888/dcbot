@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:8001';
+const API_BASE = window.location.protocol === 'file:' ? 'http://127.0.0.1:8001' : '';
 const PAYMENT_ADDRESSES = {
   BEP20: '0x3C602BA23061F760F3a86f25698a6696804c2254',
   TRC20: 'TVDXooB8mC6AD1W68yNLuauQ39cQSJKkQ3'
