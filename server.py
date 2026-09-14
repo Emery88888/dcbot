@@ -23,11 +23,60 @@ DEFAULT_PROMOS = {
     'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'active': True, 'used_count': 0}
 }
 
+import urllib.request
+
+UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip().rstrip('/')
+UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
+
+def _cloud_get(key):
+    if not UPSTASH_URL or not UPSTASH_TOKEN:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{UPSTASH_URL}/get/{key}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"}
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            raw_val = data.get('result')
+            if raw_val:
+                return json.loads(raw_val)
+    except Exception as e:
+        print(f"[Cloud DB Read Error] {e}")
+    return None
+
+def _cloud_set(key, val):
+    if not UPSTASH_URL or not UPSTASH_TOKEN:
+        return False
+    try:
+        val_str = json.dumps(val, ensure_ascii=False)
+        req = urllib.request.Request(
+            f"{UPSTASH_URL}/set/{key}",
+            data=json.dumps([key, val_str]).encode('utf-8'),
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            return True
+    except Exception as e:
+        print(f"[Cloud DB Write Error] {e}")
+    return False
+
 # --- 持久化儲存 ---
 def _load_data():
     orders = {}
     promos = dict(DEFAULT_PROMOS)
     tokens = {}
+
+    # 1. 優先從雲端資料庫讀取（永不丟失）
+    cloud_data = _cloud_get('dcbot_store')
+    if cloud_data and isinstance(cloud_data, dict):
+        orders = cloud_data.get('orders', {})
+        promos = cloud_data.get('promos', DEFAULT_PROMOS)
+        tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
+        print(f"[OK] Loaded {len(orders)} orders and {len(promos)} promos from Cloud DB.")
+        return orders, promos, tokens
+
+    # 2. 本機檔案備案
     if DATA_FILE.exists():
         try:
             raw = json.loads(DATA_FILE.read_text(encoding='utf-8'))
@@ -40,10 +89,18 @@ def _load_data():
 
 def _save_data():
     with _lock:
-        DATA_FILE.write_text(
-            json.dumps({'orders': ORDERS, 'promos': PROMOS}, ensure_ascii=False, indent=2),
-            encoding='utf-8'
-        )
+        payload = {'orders': ORDERS, 'promos': PROMOS}
+        # 存本機
+        try:
+            DATA_FILE.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding='utf-8'
+            )
+        except Exception:
+            pass
+        # 同步存雲端
+        if UPSTASH_URL and UPSTASH_TOKEN:
+            threading.Thread(target=_cloud_set, args=('dcbot_store', payload), daemon=True).start()
 
 ORDERS, PROMOS, JOIN_TOKENS = _load_data()
 

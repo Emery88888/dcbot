@@ -67,10 +67,25 @@ var refInput = document.getElementById('f-ref');
 var discountNote = document.getElementById('discount-note');
 var applyPromoBtn = document.getElementById('apply-promo-btn');
 var appliedPromoCode = '';
+var promoDebounceTimer = null;
+
+// 清理與正規化優惠碼（全形轉半形、移除空白、轉大寫）
+function cleanPromoCode(str) {
+  if (!str) return '';
+  return str
+    .replace(/[\uff01-\uff5e]/g, function(ch) {
+      return String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
+    })
+    .replace(/\u3000/g, ' ')
+    .trim()
+    .toUpperCase();
+}
 
 async function verifyPromo() {
   if (!refInput) return;
-  var code = refInput.value.trim().toUpperCase();
+  var code = cleanPromoCode(refInput.value);
+  refInput.value = code; // 自動把欄位正規化為大寫半形
+
   if (!code) {
     appliedPromoCode = '';
     finalAmount = baseAmount;
@@ -118,9 +133,27 @@ if (applyPromoBtn) {
   applyPromoBtn.addEventListener('click', verifyPromo);
 }
 if (refInput) {
+  // 輸入時停止 600ms 自動觸發驗證，使用者不需要手動點套用
+  refInput.addEventListener('input', function() {
+    clearTimeout(promoDebounceTimer);
+    var code = cleanPromoCode(refInput.value);
+    if (!code) {
+      appliedPromoCode = '';
+      finalAmount = baseAmount;
+      document.getElementById('sum-amount').textContent = finalAmount + 'U';
+      if (discountNote) discountNote.textContent = '';
+      return;
+    }
+    promoDebounceTimer = setTimeout(verifyPromo, 600);
+  });
+
+  // 離開輸入框時自動驗證
+  refInput.addEventListener('blur', verifyPromo);
+
   refInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      clearTimeout(promoDebounceTimer);
       verifyPromo();
     }
   });
@@ -179,7 +212,12 @@ payForm.addEventListener('submit', async function(e) {
   e.preventDefault();
   var name   = document.getElementById('f-name').value.trim();
   var dcName = document.getElementById('f-dc').value.trim();
-  var refCode = refInput ? refInput.value.trim().toUpperCase() : '';
+  var refCode = refInput ? cleanPromoCode(refInput.value) : '';
+
+  // 若使用者填了優惠碼但尚未點套用，送出前自動為其驗證
+  if (refCode && !appliedPromoCode) {
+    await verifyPromo();
+  }
 
   if (!name) {
     payMessage.style.color = '#ffcf89';
