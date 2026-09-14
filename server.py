@@ -25,8 +25,8 @@ DEFAULT_PROMOS = {
 
 import urllib.request
 
-UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip().rstrip('/')
-UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
+UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', 'https://warm-wahoo-139691.upstash.io').strip().rstrip('/')
+UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', 'gQAAAAAAAiGrAAIgcDI4NmZiOTliMTRlNmQ0ZmI3ODU4NDkyZWUxMjFmMzVmNA').strip()
 
 def _cloud_get(key):
     if not UPSTASH_URL or not UPSTASH_TOKEN:
@@ -51,12 +51,13 @@ def _cloud_set(key, val):
     try:
         val_str = json.dumps(val, ensure_ascii=False)
         req = urllib.request.Request(
-            f"{UPSTASH_URL}/set/{key}",
-            data=json.dumps([key, val_str]).encode('utf-8'),
+            UPSTASH_URL,
+            data=json.dumps(["SET", key, val_str]).encode('utf-8'),
             headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/json"}
         )
         with urllib.request.urlopen(req, timeout=4) as resp:
-            return True
+            data = json.loads(resp.read().decode('utf-8'))
+            return data.get('result') == 'OK'
     except Exception as e:
         print(f"[Cloud DB Write Error] {e}")
     return False
