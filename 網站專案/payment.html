@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>完成付款 — 雙效合一交易機器人</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .pay-shell {
+      max-width: 580px;
+      margin: 40px auto 80px;
+      padding: 0 16px;
+    }
+    .pay-card {
+      background: var(--panel);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line-strong);
+      border-radius: 24px;
+      padding: 36px 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .pay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .pay-title { font-size: 20px; font-weight: 900; color: var(--text); }
+    
+    .order-summary {
+      background: rgba(6, 12, 23, 0.6);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .order-summary b { color: var(--text); font-weight: 800; }
+
+    .chain-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .chain-btn {
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+    }
+    .chain-btn.active {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: rgba(112, 243, 255, 0.1);
+      box-shadow: 0 0 15px rgba(112, 243, 255, 0.15);
+    }
+
+    .address-box {
+      background: rgba(6, 12, 23, 0.8);
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .address-text {
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--blue);
+      word-break: break-all;
+      font-weight: 600;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(112, 243, 255, 0.4);
+      background: rgba(112, 243, 255, 0.1);
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: var(--blue);
+      color: #060c17;
+    }
+
+    .field-group { margin-bottom: 20px; }
+    .field-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .field-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(6, 12, 23, 0.6);
+      color: var(--text);
+      font-size: 14.5px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field-group input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 15px rgba(112, 243, 255, 0.15);
+    }
+    .optional-tag {
+      font-size: 11px;
+      color: var(--subtle);
+      margin-left: 6px;
+    }
+
+    .upload-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed var(--line);
+      border-radius: 12px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all .2s;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      background: rgba(6, 12, 23, 0.4);
+    }
+    .upload-label:hover { border-color: var(--blue); color: var(--text); }
+    .upload-label.has-file { border-color: var(--green); color: var(--green); background: rgba(138, 255, 180, 0.05); }
+    #screenshot-input { display: none; }
+
+    .submit-btn {
+      width: 100%;
+      padding: 15px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--green-deep), var(--blue-deep));
+      color: #060c17;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      margin-top: 10px;
+      box-shadow: 0 0 25px var(--green-glow);
+      transition: all 0.3s ease;
+    }
+    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 35px var(--green-glow); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .pay-message {
+      margin-top: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 20px;
+      text-align: center;
+    }
+    .success-box {
+      display: none;
+      background: rgba(138, 255, 180, 0.08);
+      border: 1px solid rgba(138, 255, 180, 0.3);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .success-box.show { display: block; }
+    .success-box h3 { color: var(--green); margin: 0 0 10px; font-size: 20px; font-weight: 900; }
+    .success-box p { color: var(--muted); font-size: 14px; margin: 6px 0; }
+    
+    .dc-join-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 16px;
+      padding: 12px 28px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--green-deep), var(--blue-deep));
+      color: #060c17;
+      font-weight: 900;
+      text-decoration: none;
+      font-size: 14px;
+      box-shadow: 0 0 20px var(--green-glow);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="logo" href="index.html">
+        <span class="logo-badge">PRO</span>
+        <span class="logo-text">雙效合一交易機器人</span>
+      </a>
+    </header>
+
+    <main class="pay-shell">
+      <div class="pay-card">
+        <div class="pay-header">
+          <span class="pay-title">完成 USDT 轉帳與審核</span>
+          <span class="panel-status">
+            <span class="status-dot"></span>
+            即時查帳中
+          </span>
+        </div>
+
+        <!-- 訂單摘要 -->
+        <div class="order-summary">
+          <div>方案：<b id="sum-plan">—</b></div>
+          <div>數量：<b id="sum-qty">—</b></div>
+          <div>應付總額：<b id="sum-amount" style="color:var(--green);font-size:16px;">—</b></div>
+        </div>
+
+        <!-- 選鏈 -->
+        <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:10px;">選擇支付網路</div>
+        <div class="chain-row">
+          <button type="button" class="chain-btn active" data-chain="BEP20">BEP20 (BSC 幣安智能鏈)</button>
+          <button type="button" class="chain-btn" data-chain="TRC20">TRC20 (TRON 波場)</button>
+        </div>
+
+        <!-- 地址顯示 -->
+        <div class="address-box">
+          <span class="address-text" id="pay-address">0x3C602BA23061F760F3a86f25698a6696804c2254</span>
+          <button type="button" class="copy-btn" id="copy-addr-btn">複製地址</button>
+        </div>
+
+        <!-- 填寫資料 -->
+        <form id="pay-form">
+          <div class="field-group">
+            <label for="f-name">付款人姓名 / 稱呼</label>
+            <input id="f-name" type="text" placeholder="請輸入您的真實姓名或稱呼" required />
+          </div>
+          <div class="field-group">
+            <label for="f-dc">Discord 帳號名稱</label>
+            <input id="f-dc" type="text" placeholder="例：username 或 username#1234" required />
+          </div>
+          <div class="field-group">
+            <label>上傳轉帳交易紀錄截圖</label>
+            <label class="upload-label" id="upload-label" for="screenshot-input">
+              <span id="upload-hint">📎 點此上傳轉帳截圖憑證（JPG / PNG）</span>
+            </label>
+            <input id="screenshot-input" type="file" accept="image/*" />
+          </div>
+          <div class="field-group">
+            <label for="f-ref">優惠碼 / 折扣碼 <span class="optional-tag">（選填）</span></label>
+            <div style="display:flex;gap:8px;">
+              <input id="f-ref" type="text" placeholder="如有優惠碼請填寫（例：VIP888）" style="flex:1;" />
+              <button type="button" id="apply-promo-btn" style="padding:0 18px;border-radius:12px;border:1px solid rgba(112,243,255,.4);background:rgba(112,243,255,.12);color:var(--blue);font-weight:800;cursor:pointer;white-space:nowrap;">套用折扣</button>
+            </div>
+            <span id="discount-note" style="font-size:12px;margin-top:6px;display:block;min-height:16px;"></span>
+          </div>
+
+          <button type="submit" class="submit-btn" id="pay-submit">確認送出並申請審核 →</button>
+        </form>
+
+        <div class="pay-message" id="pay-message"></div>
+
+        <!-- 成功框 -->
+        <div class="success-box" id="success-box">
+          <h3>🎉 訂單已成功送出！</h3>
+          <p id="suc-order-id"></p>
+          <p style="color:var(--muted);font-size:13px;margin-top:8px;">管理員核對鏈上款項後將會開放專屬入群連結。<br>如 24 小時以上未審核請私訊官方客服。</p>
+          <a href="https://discord.gg/JvFTfFY5KZ" target="_blank" rel="noopener" class="dc-join-btn">前往 Discord 申請入群 ↗</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <span class="logo-text">雙效合一交易機器人</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://line.me/R/ti/p/@emery888" target="_blank" rel="noopener">官方 LINE @emery888 ↗</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="payment.js"></script>
+</body>
+</html>
