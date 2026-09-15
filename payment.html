@@ -7,61 +7,70 @@
   <link rel="stylesheet" href="styles.css" />
   <style>
     .pay-shell {
-      max-width: 560px;
-      margin: 48px auto;
-      padding: 0 16px 48px;
+      max-width: 540px;
+      margin: 40px auto 70px;
+      padding: 0 16px;
     }
     .pay-card {
-      background: var(--card-bg, #101b2c);
-      border: 1px solid rgba(230,244,255,.12);
-      border-radius: 20px;
-      padding: 32px 28px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 32px 26px;
+      box-shadow: 0 10px 30px var(--shadow);
     }
     .pay-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
     }
-    .pay-title { font-size: 18px; font-weight: 700; }
+    .pay-title { font-size: 18px; font-weight: 800; color: var(--text); }
+    
     .order-summary {
-      background: rgba(20,31,53,.6);
-      border: 1px solid rgba(230,244,255,.1);
-      border-radius: 12px;
+      background: rgba(11, 15, 25, 0.5);
+      border: 1px solid var(--line);
+      border-radius: 10px;
       padding: 14px 16px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       display: flex;
-      gap: 20px;
-      font-size: 14px;
-      color: #b2bfd5;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 13.5px;
+      color: var(--muted);
     }
-    .order-summary b { color: #eef8ff; }
+    .order-summary b { color: var(--text); font-weight: 700; }
+
     .chain-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
     .chain-btn {
       padding: 12px;
-      border-radius: 10px;
-      border: 2px solid rgba(230,244,255,.15);
-      background: transparent;
-      color: #b2bfd5;
-      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--muted);
+      font-size: 13.5px;
       font-weight: 600;
       cursor: pointer;
       transition: all .2s;
       text-align: center;
     }
     .chain-btn.active {
-      border-color: #70f3ff;
-      color: #70f3ff;
-      background: rgba(112,243,255,.08);
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
     }
+
     .address-box {
-      background: rgba(20,31,53,.8);
-      border: 1px solid rgba(112,243,255,.25);
+      background: rgba(11, 15, 25, 0.8);
+      border: 1px solid var(--line);
       border-radius: 10px;
       padding: 12px 14px;
       margin-bottom: 20px;
@@ -72,112 +81,125 @@
     }
     .address-text {
       font-family: monospace;
-      font-size: 12px;
-      color: #70f3ff;
+      font-size: 12.5px;
+      color: var(--accent);
       word-break: break-all;
+      font-weight: 600;
     }
     .copy-btn {
       flex-shrink: 0;
       padding: 6px 12px;
-      border-radius: 7px;
-      border: 1px solid rgba(112,243,255,.4);
-      background: transparent;
-      color: #70f3ff;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
       font-size: 12px;
+      font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
+      transition: all 0.2s;
     }
-    .copy-btn:hover { background: rgba(112,243,255,.1); }
-    .field-group { margin-bottom: 16px; }
+    .copy-btn:hover {
+      background: var(--accent);
+      color: #0b0f19;
+    }
+
+    .field-group { margin-bottom: 18px; }
     .field-group label {
       display: block;
-      font-size: 13px;
-      color: #b2bfd5;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--muted);
       margin-bottom: 6px;
     }
-    .field-group input, .field-group textarea {
+    .field-group input {
       width: 100%;
       padding: 10px 14px;
-      border-radius: 9px;
-      border: 1px solid rgba(230,244,255,.15);
-      background: rgba(20,31,53,.6);
-      color: #eef8ff;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
       font-size: 14px;
       box-sizing: border-box;
       outline: none;
       transition: border-color .2s;
     }
-    .field-group input:focus, .field-group textarea:focus {
-      border-color: rgba(112,243,255,.5);
+    .field-group input:focus {
+      border-color: var(--accent);
     }
-    .field-group textarea { resize: vertical; min-height: 80px; }
     .optional-tag {
       font-size: 11px;
-      color: #7a8fa5;
+      color: var(--subtle);
       margin-left: 6px;
     }
+
     .upload-label {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      border: 2px dashed rgba(230,244,255,.2);
+      border: 1px dashed var(--line);
       border-radius: 10px;
-      padding: 24px;
+      padding: 20px;
       cursor: pointer;
-      transition: border-color .2s;
-      color: #7a8fa5;
-      font-size: 14px;
+      transition: all .2s;
+      color: var(--muted);
+      font-size: 13.5px;
       text-align: center;
-      min-height: 90px;
+      background: rgba(11, 15, 25, 0.4);
     }
-    .upload-label:hover { border-color: rgba(112,243,255,.4); color: #b2bfd5; }
-    .upload-label.has-file { border-color: rgba(138,255,180,.4); color: #8affb4; }
+    .upload-label:hover { border-color: var(--accent); color: var(--text); }
+    .upload-label.has-file { border-color: var(--green); color: var(--green); background: rgba(52, 211, 153, 0.05); }
     #screenshot-input { display: none; }
+
     .submit-btn {
       width: 100%;
-      padding: 14px;
-      border-radius: 11px;
+      padding: 13px;
+      border-radius: 8px;
       border: none;
-      background: linear-gradient(135deg, #8affb4, #70f3ff);
-      color: #0a1628;
-      font-size: 16px;
-      font-weight: 800;
+      background: var(--accent);
+      color: #0b0f19;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
       margin-top: 8px;
-      transition: opacity .2s;
+      transition: all 0.2s ease;
     }
-    .submit-btn:hover { opacity: .9; }
+    .submit-btn:hover { background: #7dd3fc; }
     .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+
     .pay-message {
       margin-top: 14px;
-      font-size: 14px;
+      font-size: 13.5px;
       line-height: 1.6;
       min-height: 20px;
       text-align: center;
     }
     .success-box {
       display: none;
-      background: rgba(138,255,180,.07);
-      border: 1px solid rgba(138,255,180,.3);
+      background: rgba(52, 211, 153, 0.08);
+      border: 1px solid rgba(52, 211, 153, 0.25);
       border-radius: 12px;
       padding: 20px;
-      margin-top: 16px;
+      margin-top: 18px;
       text-align: center;
     }
     .success-box.show { display: block; }
-    .success-box h3 { color: #8affb4; margin: 0 0 8px; font-size: 18px; }
-    .success-box p { color: #b2bfd5; font-size: 14px; margin: 4px 0; }
+    .success-box h3 { color: var(--green); margin: 0 0 8px; font-size: 18px; font-weight: 800; }
+    .success-box p { color: var(--muted); font-size: 13.5px; margin: 4px 0; }
+    
     .dc-join-btn {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       margin-top: 14px;
       padding: 10px 24px;
-      border-radius: 9px;
-      background: linear-gradient(135deg,#8affb4,#70f3ff);
-      color: #0a1628;
-      font-weight: 800;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #0b0f19;
+      font-weight: 700;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13.5px;
     }
   </style>
 </head>
@@ -185,6 +207,7 @@
   <div class="app-shell">
     <header class="site-header">
       <a class="logo" href="index.html">
+        <span class="logo-badge">PRO</span>
         <span class="logo-text">雙效合一交易機器人</span>
       </a>
     </header>
@@ -192,69 +215,70 @@
     <main class="pay-shell">
       <div class="pay-card">
         <div class="pay-header">
-          <span class="pay-title">完成付款</span>
-          <span class="panel-status">驗證中</span>
+          <span class="pay-title">完成 USDT 轉帳與審核</span>
+          <span class="panel-status">
+            <span class="status-dot"></span>
+            即時查帳中
+          </span>
         </div>
 
         <!-- 訂單摘要 -->
         <div class="order-summary">
           <div>方案：<b id="sum-plan">—</b></div>
           <div>數量：<b id="sum-qty">—</b></div>
-          <div>金額：<b id="sum-amount">—</b></div>
+          <div>應付總額：<b id="sum-amount" style="color:var(--accent);font-size:15px;">—</b></div>
         </div>
 
         <!-- 選鏈 -->
-        <div style="font-size:13px;color:#b2bfd5;margin-bottom:10px;">選擇繳費鏈</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:8px;">選擇支付網絡</div>
         <div class="chain-row">
-          <button type="button" class="chain-btn active" data-chain="BEP20">BEP20 (BSC)</button>
-          <button type="button" class="chain-btn" data-chain="TRC20">TRC20 (TRX)</button>
+          <button type="button" class="chain-btn active" data-chain="BEP20">BEP20 (BSC 幣安智能鏈)</button>
+          <button type="button" class="chain-btn" data-chain="TRC20">TRC20 (TRON 波場)</button>
         </div>
 
         <!-- 地址顯示 -->
         <div class="address-box">
           <span class="address-text" id="pay-address">0x3C602BA23061F760F3a86f25698a6696804c2254</span>
-          <button type="button" class="copy-btn" id="copy-addr-btn">複製</button>
+          <button type="button" class="copy-btn" id="copy-addr-btn">複製地址</button>
         </div>
 
         <!-- 填寫資料 -->
         <form id="pay-form">
           <div class="field-group">
-            <label for="f-name">付款人名稱</label>
-            <input id="f-name" type="text" placeholder="請輸入您的名稱" required />
+            <label for="f-name">付款人姓名 / 稱呼</label>
+            <input id="f-name" type="text" placeholder="請輸入您的真實姓名或稱呼" required />
           </div>
           <div class="field-group">
-            <label for="f-dc">DC 名稱（Discord）</label>
-            <input id="f-dc" type="text" placeholder="例：username#1234 或 @username" required />
+            <label for="f-dc">Discord 帳號名稱</label>
+            <input id="f-dc" type="text" placeholder="例：username 或 username#1234" required />
           </div>
           <div class="field-group">
-            <label>
-              交易紀錄截圖
-            </label>
+            <label>上傳轉帳交易紀錄截圖</label>
             <label class="upload-label" id="upload-label" for="screenshot-input">
-              <span id="upload-hint">📎 點此上傳截圖（JPG / PNG）</span>
+              <span id="upload-hint">📎 點此上傳轉帳截圖憑證（JPG / PNG）</span>
             </label>
             <input id="screenshot-input" type="file" accept="image/*" />
           </div>
           <div class="field-group">
-            <label for="f-ref">優惠碼 / 推薦碼 <span class="optional-tag">（選填）</span></label>
+            <label for="f-ref">優惠碼 / 折扣碼 <span class="optional-tag">（選填）</span></label>
             <div style="display:flex;gap:8px;">
               <input id="f-ref" type="text" placeholder="如有優惠碼請填寫（例：VIP888）" style="flex:1;" />
-              <button type="button" id="apply-promo-btn" style="padding:0 16px;border-radius:9px;border:1px solid rgba(112,243,255,.4);background:rgba(112,243,255,.1);color:#70f3ff;font-weight:700;cursor:pointer;white-space:nowrap;">套用</button>
+              <button type="button" id="apply-promo-btn" style="padding:0 16px;border-radius:8px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.1);color:var(--accent);font-weight:700;cursor:pointer;white-space:nowrap;">套用折扣</button>
             </div>
             <span id="discount-note" style="font-size:12px;margin-top:6px;display:block;min-height:16px;"></span>
           </div>
 
-          <button type="submit" class="submit-btn" id="pay-submit">確認送出</button>
+          <button type="submit" class="submit-btn" id="pay-submit">確認送出並申請審核 →</button>
         </form>
 
         <div class="pay-message" id="pay-message"></div>
 
         <!-- 成功框 -->
         <div class="success-box" id="success-box">
-          <h3>訂單已送出！</h3>
+          <h3>🎉 訂單已成功送出！</h3>
           <p id="suc-order-id"></p>
-          <p style="color:#7a8fa5;font-size:12px;margin-top:8px;">管理員審核後將開放群組連結，請耐心等候。<br>24小時以上未審核請私訊客服。</p>
-          <a href="https://discord.gg/JvFTfFY5KZ" target="_blank" rel="noopener" class="dc-join-btn">前往 Discord</a>
+          <p style="color:var(--muted);font-size:13px;margin-top:6px;">管理員核對鏈上款項後將會開放專屬入群連結。<br>如 24 小時以上未審核請私訊官方客服。</p>
+          <a href="https://discord.gg/JvFTfFY5KZ" target="_blank" rel="noopener" class="dc-join-btn">前往 Discord 申請入群 ↗</a>
         </div>
       </div>
     </main>
@@ -264,7 +288,7 @@
         <span class="logo-text">雙效合一交易機器人</span>
       </div>
       <div class="footer-links">
-        <a href="https://line.me/R/ti/p/@emery888" target="_blank" rel="noopener">官方 LINE @emery888</a>
+        <a href="https://line.me/R/ti/p/@emery888" target="_blank" rel="noopener">官方 LINE @emery888 ↗</a>
       </div>
     </footer>
   </div>
