@@ -313,6 +313,62 @@
     </div>
   </div>
 
+  <!-- 新增/編輯方案彈窗 -->
+  <div class="modal-overlay" id="plan-modal">
+    <div class="modal-box" style="max-width:540px;">
+      <div class="modal-title" id="plan-modal-title">💼 新增會員方案</div>
+      <form id="plan-form">
+        <input type="hidden" id="plan-mode" value="create" />
+        <div class="form-row">
+          <label>方案代碼 (ID，英數字大寫，例：HALF_YEAR, VIP, LIFETIME)</label>
+          <input id="plan-id" type="text" placeholder="例：VIP" required />
+        </div>
+        <div class="form-row">
+          <label>方案名稱</label>
+          <input id="plan-name" type="text" placeholder="例：半年特惠方案" required />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-row">
+            <label>價格 (USDT)</label>
+            <input id="plan-price" type="number" step="0.1" min="0" placeholder="例：499" required />
+          </div>
+          <div class="form-row">
+            <label>週期單位文字</label>
+            <input id="plan-period" type="text" placeholder="例：U / 月 或 U / 半年" value="U / 月" required />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-row">
+            <label>標籤 (Tag，如 Standard, Pro Value)</label>
+            <input id="plan-tag" type="text" placeholder="例：Popular" />
+          </div>
+          <div class="form-row">
+            <label>推薦角標 (Badge，選填)</label>
+            <input id="plan-badge" type="text" placeholder="例：熱門推薦 · 省下 38U" />
+          </div>
+        </div>
+        <div class="form-row">
+          <label>條列特色亮點（一行一項）</label>
+          <textarea id="plan-features" rows="4" style="width:100%;padding:10px 14px;border-radius:9px;border:1px solid var(--border);background:var(--card-inner);color:var(--text);box-sizing:border-box;font-size:13px;resize:vertical;" placeholder="全天候 AI 數據分析&#10;技術面與籌碼面指標推播&#10;Discord 會員群組加入權限"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-row">
+            <label>顯示排序權重 (越小越前)</label>
+            <input id="plan-sort" type="number" min="1" value="3" required />
+          </div>
+          <div class="form-row" style="display:flex;align-items:center;padding-top:24px;gap:8px;">
+            <input id="plan-highlight" type="checkbox" style="width:18px;height:18px;cursor:pointer;" />
+            <label for="plan-highlight" style="margin:0;cursor:pointer;color:var(--text);">視覺醒目強調 (高亮邊框)</label>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button type="button" class="btn-sm" style="flex:1;padding:10px;" onclick="closePlanModal()">取消</button>
+          <button type="submit" class="btn-sm btn-primary" style="flex:1;padding:10px;" id="plan-submit-btn">儲存方案</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 主頁面內容 -->
   <div class="admin-container" id="main-app" style="display:none;">
     <div class="admin-header">
@@ -346,6 +402,7 @@
     <!-- 分頁按鈕 -->
     <div class="tab-bar">
       <button class="tab-btn active" id="tab-btn-orders" onclick="switchTab('orders')">📋 訂單審核管理</button>
+      <button class="tab-btn" id="tab-btn-plans" onclick="switchTab('plans')">💼 會員方案管理</button>
       <button class="tab-btn" id="tab-btn-promos" onclick="switchTab('promos')">🎟️ 優惠碼設定</button>
     </div>
 
@@ -381,7 +438,35 @@
       </div>
     </div>
 
-    <!-- 分頁 2: 優惠碼設定 -->
+    <!-- 分頁 2: 會員方案管理 -->
+    <div id="tab-plans" style="display:none;">
+      <div class="filter-bar">
+        <div style="font-size:16px;font-weight:700;">現有會員方案清單</div>
+        <button class="btn-sm btn-primary" onclick="openPlanModal()">+ 新增方案</button>
+      </div>
+
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>代碼 (ID)</th>
+              <th>方案名稱 / 標籤</th>
+              <th>價格 (USDT)</th>
+              <th>計費週期</th>
+              <th>功能特色亮點</th>
+              <th>視覺效果</th>
+              <th>上架狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="plans-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 分頁 3: 優惠碼設定 -->
     <div id="tab-promos" style="display:none;">
       <div class="filter-bar">
         <div style="font-size:16px;font-weight:700;">現有優惠碼清單</div>
@@ -414,6 +499,7 @@
     let adminToken = localStorage.getItem('admin_token') || '';
     let allOrders = [];
     let allPromos = [];
+    let allPlans = [];
     let currentFilter = 'all';
 
     // --- 認證 ---
@@ -461,21 +547,26 @@
     // --- 載入資料 ---
     async function loadData() {
       try {
-        const [ordRes, proRes] = await Promise.all([
+        const [ordRes, proRes, plaRes] = await Promise.all([
           fetch(`${API_BASE}/api/admin/orders`, { headers: { 'X-Admin-Token': adminToken } }),
-          fetch(`${API_BASE}/api/admin/promos`, { headers: { 'X-Admin-Token': adminToken } })
+          fetch(`${API_BASE}/api/admin/promos`, { headers: { 'X-Admin-Token': adminToken } }),
+          fetch(`${API_BASE}/api/admin/plans`, { headers: { 'X-Admin-Token': adminToken } })
         ]);
-        if (ordRes.status === 401 || proRes.status === 401) {
+        if (ordRes.status === 401 || proRes.status === 401 || plaRes.status === 401) {
           logout();
           return;
         }
         const ordData = await ordRes.json();
         const proData = await proRes.json();
+        const plaData = await plaRes.json();
         allOrders = ordData.orders || [];
         allPromos = proData.promos || [];
+        allPlans  = plaData.plans  || [];
         updateStats();
         renderOrders();
+        renderPlans();
         renderPromos();
+        updatePromoPlanOptions();
       } catch (err) {
         console.error('載入失敗:', err);
       }
@@ -514,7 +605,8 @@
 
       tbody.innerHTML = filtered.map(o => {
         const dateStr = o.created_at ? new Date(o.created_at * 1000).toLocaleString('zh-TW', { hour12: false }) : '-';
-        const planName = o.plan === '1Y' ? '年費' : '月費';
+        const pObj = allPlans.find(p => p.id === o.plan);
+        const planName = pObj ? pObj.name : (o.plan === '1Y' ? '年費方案' : (o.plan === '1M' ? '月費方案' : o.plan));
         const statusBadge = o.status === 'approved' 
           ? '<span class="badge badge-approved">已通過</span>'
           : o.status === 'rejected'
@@ -579,6 +671,177 @@
       }
     }
 
+    // --- 方案管理渲染與邏輯 ---
+    function renderPlans() {
+      const tbody = document.getElementById('plans-body');
+      if (allPlans.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">尚無設定方案</td></tr>';
+        return;
+      }
+      tbody.innerHTML = allPlans.map(p => {
+        const activeBadge = p.active 
+          ? '<span class="badge badge-approved">上架中</span>' 
+          : '<span class="badge badge-rejected">已下架</span>';
+        const toggleTxt = p.active ? '下架' : '上架';
+        const highlightBadge = p.highlight 
+          ? '<span class="badge" style="background:rgba(56,189,248,.15);color:var(--accent);border:1px solid rgba(56,189,248,.3);">高亮推薦</span>' 
+          : '<span style="color:var(--subtle);font-size:12px;">標準樣式</span>';
+        
+        const tagBadge = p.tag ? `<span class="badge" style="background:rgba(255,255,255,.06);color:var(--muted);margin-left:4px;">${escapeHtml(p.tag)}</span>` : '';
+        const badgeBadge = p.badge ? `<br><small style="color:var(--accent);font-weight:600;">🏷️ ${escapeHtml(p.badge)}</small>` : '';
+        
+        const featuresSummary = (p.features && p.features.length > 0)
+          ? `<ul style="margin:0;padding-left:16px;font-size:12px;color:var(--muted);line-height:1.4;">` + p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('') + `</ul>`
+          : '<span style="color:var(--subtle);font-size:12px;">無特色條列</span>';
+
+        return `
+          <tr>
+            <td><b style="color:var(--blue);font-size:15px;">${escapeHtml(p.id)}</b></td>
+            <td>
+              <b style="color:var(--text);font-size:14px;">${escapeHtml(p.name)}</b>${tagBadge}
+              ${badgeBadge}
+            </td>
+            <td><b style="color:var(--green);font-size:16px;">${p.price} U</b></td>
+            <td><span style="color:var(--muted);font-size:12.5px;">${escapeHtml(p.period || 'U / 月')}</span></td>
+            <td>${featuresSummary}</td>
+            <td>${highlightBadge}</td>
+            <td>${activeBadge}</td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn-sm btn-primary" style="padding:4px 8px;font-size:12px;" onclick="openPlanModal('${p.id}')">編輯</button>
+                <button class="btn-sm" style="padding:4px 8px;font-size:12px;" onclick="togglePlan('${p.id}')">${toggleTxt}</button>
+                <button class="btn-sm btn-danger" style="padding:4px 8px;font-size:12px;" onclick="deletePlan('${p.id}')">刪除</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openPlanModal(planId) {
+      const modal = document.getElementById('plan-modal');
+      const title = document.getElementById('plan-modal-title');
+      const modeInput = document.getElementById('plan-mode');
+      const idInput = document.getElementById('plan-id');
+      const submitBtn = document.getElementById('plan-submit-btn');
+
+      if (planId) {
+        const p = allPlans.find(x => x.id === planId);
+        if (!p) return;
+        title.textContent = '💼 編輯會員方案：' + p.name;
+        modeInput.value = 'update';
+        idInput.value = p.id;
+        idInput.readOnly = true;
+        idInput.style.opacity = '0.6';
+        document.getElementById('plan-name').value = p.name || '';
+        document.getElementById('plan-price').value = p.price || 0;
+        document.getElementById('plan-period').value = p.period || 'U / 月';
+        document.getElementById('plan-tag').value = p.tag || '';
+        document.getElementById('plan-badge').value = p.badge || '';
+        document.getElementById('plan-features').value = (p.features || []).join('\n');
+        document.getElementById('plan-sort').value = p.sort_order || 1;
+        document.getElementById('plan-highlight').checked = !!p.highlight;
+        submitBtn.textContent = '儲存更新';
+      } else {
+        title.textContent = '💼 新增會員方案';
+        modeInput.value = 'create';
+        idInput.value = '';
+        idInput.readOnly = false;
+        idInput.style.opacity = '1';
+        document.getElementById('plan-form').reset();
+        document.getElementById('plan-period').value = 'U / 月';
+        document.getElementById('plan-sort').value = allPlans.length + 1;
+        document.getElementById('plan-highlight').checked = false;
+        submitBtn.textContent = '建立方案';
+      }
+      modal.classList.add('show');
+    }
+
+    function closePlanModal() {
+      document.getElementById('plan-modal').classList.remove('show');
+    }
+
+    document.getElementById('plan-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const action = document.getElementById('plan-mode').value;
+      const id = document.getElementById('plan-id').value.trim().toUpperCase();
+      const name = document.getElementById('plan-name').value.trim();
+      const price = parseFloat(document.getElementById('plan-price').value) || 0;
+      const period = document.getElementById('plan-period').value.trim();
+      const tag = document.getElementById('plan-tag').value.trim();
+      const badge = document.getElementById('plan-badge').value.trim();
+      const rawFeatures = document.getElementById('plan-features').value;
+      const features = rawFeatures.split('\n').map(s => s.trim()).filter(Boolean);
+      const sort_order = parseInt(document.getElementById('plan-sort').value, 10) || 1;
+      const highlight = document.getElementById('plan-highlight').checked;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/plans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+          body: JSON.stringify({ action, id, name, price, period, tag, badge, features, sort_order, highlight })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          closePlanModal();
+          loadData();
+        } else {
+          alert(d.message || '操作失敗');
+        }
+      } catch (err) {
+        alert('連線失敗，無法儲存方案');
+      }
+    });
+
+    async function togglePlan(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/plans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+          body: JSON.stringify({ action: 'toggle', id })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          loadData();
+        } else {
+          alert(d.message || '操作失敗');
+        }
+      } catch (err) {
+        alert('操作失敗');
+      }
+    }
+
+    async function deletePlan(id) {
+      if (!confirm(`確定要刪除方案代碼 ${id} 嗎？\n注意：如果已有訂單使用此方案，建議下架而非刪除。`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/plans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+          body: JSON.stringify({ action: 'delete', id })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          loadData();
+        } else {
+          alert(d.message || '刪除失敗');
+        }
+      } catch (err) {
+        alert('刪除失敗');
+      }
+    }
+
+    function updatePromoPlanOptions() {
+      const select = document.getElementById('p-plan');
+      if (!select) return;
+      const currentVal = select.value || 'all';
+      let html = '<option value="all">全部方案通用</option>';
+      allPlans.forEach(p => {
+        html += `<option value="${p.id}">${escapeHtml(p.name)} (${p.id})</option>`;
+      });
+      select.innerHTML = html;
+      select.value = currentVal;
+    }
+
     // --- 優惠碼渲染 ---
     function renderPromos() {
       const tbody = document.getElementById('promos-body');
@@ -590,10 +853,10 @@
         const desc = p.type === 'percent' ? `打 ${100 - p.value} 折 (${p.value}% OFF)` : `折抵 ${p.value} USDT`;
         
         let planBadge = '<span class="badge" style="background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25);">全部通用</span>';
-        if (p.plan === '1M') {
-          planBadge = '<span class="badge" style="background:rgba(251,191,36,.12);color:var(--orange);border:1px solid rgba(251,191,36,.25);">僅限月費</span>';
-        } else if (p.plan === '1Y') {
-          planBadge = '<span class="badge" style="background:rgba(167,139,250,.15);color:#c084fc;border:1px solid rgba(167,139,250,.3);">僅限年費</span>';
+        if (p.plan && p.plan !== 'all') {
+          const matchPlan = allPlans.find(x => x.id === p.plan);
+          const pName = matchPlan ? matchPlan.name : p.plan;
+          planBadge = `<span class="badge" style="background:rgba(251,191,36,.12);color:var(--orange);border:1px solid rgba(251,191,36,.25);">僅限 ${escapeHtml(pName)}</span>`;
         }
 
         const minQty = p.min_qty || 1;
@@ -658,6 +921,7 @@
 
     // --- 優惠碼 Modal ---
     function openPromoModal() {
+      updatePromoPlanOptions();
       document.getElementById('promo-modal').classList.add('show');
     }
     function closePromoModal() {
@@ -700,8 +964,10 @@
     // --- UI 互動與輔助 ---
     function switchTab(tab) {
       document.getElementById('tab-orders').style.display = tab === 'orders' ? 'block' : 'none';
+      document.getElementById('tab-plans').style.display = tab === 'plans' ? 'block' : 'none';
       document.getElementById('tab-promos').style.display = tab === 'promos' ? 'block' : 'none';
       document.getElementById('tab-btn-orders').classList.toggle('active', tab === 'orders');
+      document.getElementById('tab-btn-plans').classList.toggle('active', tab === 'plans');
       document.getElementById('tab-btn-promos').classList.toggle('active', tab === 'promos');
     }
 

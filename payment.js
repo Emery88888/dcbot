@@ -15,6 +15,20 @@ document.getElementById('sum-plan').textContent   = planLabels[plan] || plan;
 document.getElementById('sum-qty').textContent    = quantity;
 document.getElementById('sum-amount').textContent = finalAmount + 'U';
 
+// 動態從伺服器取得方案中文名稱
+(async function() {
+  try {
+    var res = await fetch(API_BASE + '/api/plans');
+    var d = await res.json();
+    if (d.ok && Array.isArray(d.plans)) {
+      var found = d.plans.find(function(p) { return p.id === plan; });
+      if (found) {
+        document.getElementById('sum-plan').textContent = found.name;
+      }
+    }
+  } catch (e) {}
+})();
+
 // --- 選鏈 ---
 let selectedChain = 'BEP20';
 function setChain(chain) {
