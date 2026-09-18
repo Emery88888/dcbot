@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
@@ -289,6 +289,22 @@
           <label id="p-val-label">折抵金額 (USDT)</label>
           <input id="p-val" type="number" step="0.1" min="0.1" placeholder="例：10" required />
         </div>
+        <div class="form-row">
+          <label>適用方案</label>
+          <select id="p-plan">
+            <option value="all">全部方案通用</option>
+            <option value="1M">僅限月費方案 (1M)</option>
+            <option value="1Y">僅限年費方案 (1Y)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>最低購買份數門檻（買滿幾份才可折抵）</label>
+          <input id="p-min-qty" type="number" min="1" value="1" placeholder="例：1 (代表 1 份起即可使用)" required />
+        </div>
+        <div class="form-row">
+          <label>使用數量上限（名額限制）</label>
+          <input id="p-max-uses" type="number" min="0" value="0" placeholder="填 0 或留空代表不限次數" />
+        </div>
         <div style="display:flex;gap:10px;margin-top:20px;">
           <button type="button" class="btn-sm" style="flex:1;padding:10px;" onclick="closePromoModal()">取消</button>
           <button type="submit" class="btn-sm btn-primary" style="flex:1;padding:10px;">建立優惠碼</button>
@@ -378,13 +394,15 @@
             <tr>
               <th>優惠代碼</th>
               <th>折扣內容</th>
-              <th>已使用次數</th>
+              <th>適用方案</th>
+              <th>購買門檻</th>
+              <th>使用進度 (已用 / 上限)</th>
               <th>目前狀態</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody id="promos-body">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">載入中...</td></tr>
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">載入中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -565,21 +583,50 @@
     function renderPromos() {
       const tbody = document.getElementById('promos-body');
       if (allPromos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px;">目前無優惠碼</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">目前無優惠碼</td></tr>';
         return;
       }
       tbody.innerHTML = allPromos.map(p => {
         const desc = p.type === 'percent' ? `打 ${100 - p.value} 折 (${p.value}% OFF)` : `折抵 ${p.value} USDT`;
-        const activeBadge = p.active 
+        
+        let planBadge = '<span class="badge" style="background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25);">全部通用</span>';
+        if (p.plan === '1M') {
+          planBadge = '<span class="badge" style="background:rgba(251,191,36,.12);color:var(--orange);border:1px solid rgba(251,191,36,.25);">僅限月費</span>';
+        } else if (p.plan === '1Y') {
+          planBadge = '<span class="badge" style="background:rgba(167,139,250,.15);color:#c084fc;border:1px solid rgba(167,139,250,.3);">僅限年費</span>';
+        }
+
+        const minQty = p.min_qty || 1;
+        const minQtyTxt = minQty > 1 ? `<b style="color:var(--orange);">滿 ${minQty} 份起</b>` : '<span style="color:var(--muted);">1 份起 (無門檻)</span>';
+
+        const used = p.used_count || 0;
+        const maxUses = p.max_uses || 0;
+        let usageTxt = `${used} / 不限次數`;
+        let isExhausted = false;
+        if (maxUses > 0) {
+          if (used >= maxUses) {
+            usageTxt = `<span style="color:var(--red);font-weight:700;">${used} / ${maxUses} 次 (已額滿)</span>`;
+            isExhausted = true;
+          } else {
+            usageTxt = `<span style="color:var(--blue);">${used}</span> / ${maxUses} 次`;
+          }
+        }
+
+        let activeBadge = p.active 
           ? '<span class="badge badge-approved">已啟用</span>' 
           : '<span class="badge badge-rejected">已停用</span>';
+        if (p.active && isExhausted) {
+          activeBadge += ' <span class="badge badge-rejected" style="margin-left:4px;">已滿額</span>';
+        }
         const toggleTxt = p.active ? '停用' : '啟用';
 
         return `
           <tr>
             <td><b style="color:var(--blue);font-size:16px;">${p.code}</b></td>
             <td>${desc}</td>
-            <td>${p.used_count || 0} 次</td>
+            <td>${planBadge}</td>
+            <td>${minQtyTxt}</td>
+            <td>${usageTxt}</td>
             <td>${activeBadge}</td>
             <td>
               <button class="btn-sm" style="margin-right:6px;" onclick="togglePromo('${p.code}')">${toggleTxt}</button>
@@ -626,16 +673,21 @@
       const code = document.getElementById('p-code').value.trim().toUpperCase();
       const type = document.getElementById('p-type').value;
       const value = parseFloat(document.getElementById('p-val').value);
+      const plan = document.getElementById('p-plan').value;
+      const min_qty = parseInt(document.getElementById('p-min-qty').value, 10) || 1;
+      const max_uses = parseInt(document.getElementById('p-max-uses').value, 10) || 0;
       try {
         const res = await fetch(`${API_BASE}/api/admin/promos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
-          body: JSON.stringify({ action: 'create', code, type, value })
+          body: JSON.stringify({ action: 'create', code, type, value, plan, min_qty, max_uses })
         });
         const d = await res.json();
         if (d.ok) {
           closePromoModal();
           document.getElementById('create-promo-form').reset();
+          document.getElementById('p-min-qty').value = '1';
+          document.getElementById('p-max-uses').value = '0';
           loadData();
         } else {
           alert(d.message || '建立失敗');

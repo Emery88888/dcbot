@@ -19,8 +19,8 @@ PAYMENT_ADDRESSES = {
 }
 
 DEFAULT_PROMOS = {
-    'VIP888': {'code': 'VIP888', 'type': 'fixed', 'value': 10, 'active': True, 'used_count': 0},
-    'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'active': True, 'used_count': 0}
+    'VIP888': {'code': 'VIP888', 'type': 'fixed', 'value': 10, 'plan': 'all', 'min_qty': 1, 'max_uses': 0, 'active': True, 'used_count': 0},
+    'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'plan': 'all', 'min_qty': 1, 'max_uses': 0, 'active': True, 'used_count': 0}
 }
 
 import urllib.request
@@ -73,7 +73,10 @@ def _load_data():
     if cloud_data and isinstance(cloud_data, dict):
         orders = cloud_data.get('orders', {})
         promos = cloud_data.get('promos', DEFAULT_PROMOS)
-        tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
+        for p in promos.values():
+            p.setdefault('plan', 'all')
+            p.setdefault('min_qty', 1)
+            p.setdefault('max_uses', 0)
         print(f"[OK] Loaded {len(orders)} orders and {len(promos)} promos from Cloud DB.")
         return orders, promos, tokens
 
@@ -83,6 +86,10 @@ def _load_data():
             raw = json.loads(DATA_FILE.read_text(encoding='utf-8'))
             orders = raw.get('orders', {})
             promos = raw.get('promos', DEFAULT_PROMOS)
+            for p in promos.values():
+                p.setdefault('plan', 'all')
+                p.setdefault('min_qty', 1)
+                p.setdefault('max_uses', 0)
             tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
         except Exception:
             pass
@@ -181,6 +188,8 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 return
             code = str(data.get('code', '')).strip().upper()
             amount = float(data.get('amount', 0))
+            plan = str(data.get('plan', '')).strip()
+            quantity = int(data.get('quantity', 1) or 1)
             if not code:
                 self._send_json(400, {'ok': False, 'message': '請提供優惠碼'})
                 return
@@ -188,6 +197,27 @@ class ApiHandler(SimpleHTTPRequestHandler):
             if not promo or not promo.get('active', True):
                 self._send_json(200, {'ok': True, 'valid': False, 'message': '優惠碼不存在或已停用'})
                 return
+
+            # 方案限制檢查
+            target_plan = promo.get('plan', 'all')
+            if target_plan != 'all' and plan and target_plan != plan:
+                plan_text = '年費方案' if target_plan == '1Y' else '月費方案'
+                self._send_json(200, {'ok': True, 'valid': False, 'message': f'此優惠碼僅限「{plan_text}」使用'})
+                return
+
+            # 最低購買份數門檻檢查
+            min_qty = int(promo.get('min_qty', 1) or 1)
+            if quantity < min_qty:
+                self._send_json(200, {'ok': True, 'valid': False, 'message': f'此優惠碼需購買滿 {min_qty} 份以上方可使用 (目前選擇 {quantity} 份)'})
+                return
+
+            # 使用次數上限檢查
+            max_uses = int(promo.get('max_uses', 0) or 0)
+            used_count = int(promo.get('used_count', 0) or 0)
+            if max_uses > 0 and used_count >= max_uses:
+                self._send_json(200, {'ok': True, 'valid': False, 'message': '此優惠碼已達使用數量上限（名額已額滿）'})
+                return
+
             p_type = promo.get('type', 'fixed')
             p_val = float(promo.get('value', 0))
             if p_type == 'percent':
@@ -246,10 +276,25 @@ class ApiHandler(SimpleHTTPRequestHandler):
             if action == 'create':
                 p_type = str(data.get('type', 'fixed'))
                 p_val = float(data.get('value', 10))
+                p_plan = str(data.get('plan', 'all')).strip()
+                if p_plan not in ['all', '1M', '1Y']:
+                    p_plan = 'all'
+                try:
+                    p_min_qty = max(1, int(data.get('min_qty', 1) or 1))
+                except (ValueError, TypeError):
+                    p_min_qty = 1
+                try:
+                    p_max_uses = max(0, int(data.get('max_uses', 0) or 0))
+                except (ValueError, TypeError):
+                    p_max_uses = 0
+
                 PROMOS[code] = {
                     'code': code,
                     'type': p_type,
                     'value': p_val,
+                    'plan': p_plan,
+                    'min_qty': p_min_qty,
+                    'max_uses': p_max_uses,
                     'active': True,
                     'used_count': 0
                 }
@@ -310,13 +355,23 @@ class ApiHandler(SimpleHTTPRequestHandler):
             # 套用優惠碼
             if referral and referral in PROMOS and PROMOS[referral].get('active', True):
                 promo = PROMOS[referral]
-                p_type = promo.get('type', 'fixed')
-                p_val = float(promo.get('value', 0))
-                if p_type == 'percent':
-                    discount = round(subtotal * (p_val / 100.0), 2)
-                else:
-                    discount = min(float(subtotal), p_val)
-                promo['used_count'] = promo.get('used_count', 0) + 1
+                target_plan = promo.get('plan', 'all')
+                min_qty = int(promo.get('min_qty', 1) or 1)
+                max_uses = int(promo.get('max_uses', 0) or 0)
+                used_count = int(promo.get('used_count', 0) or 0)
+
+                plan_ok = (target_plan == 'all' or target_plan == plan)
+                qty_ok = (quantity >= min_qty)
+                uses_ok = (max_uses == 0 or used_count < max_uses)
+
+                if plan_ok and qty_ok and uses_ok:
+                    p_type = promo.get('type', 'fixed')
+                    p_val = float(promo.get('value', 0))
+                    if p_type == 'percent':
+                        discount = round(subtotal * (p_val / 100.0), 2)
+                    else:
+                        discount = min(float(subtotal), p_val)
+                    promo['used_count'] = used_count + 1
 
             amount = max(0.0, subtotal - discount)
 

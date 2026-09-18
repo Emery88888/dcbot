@@ -101,7 +101,7 @@ async function verifyPromo() {
     var res = await fetch(API_BASE + '/api/promo/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code, amount: baseAmount })
+      body: JSON.stringify({ code: code, amount: baseAmount, plan: plan, quantity: quantity })
     });
     var d = await res.json();
     if (d.ok && d.valid) {
