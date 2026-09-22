@@ -244,6 +244,124 @@
       border-radius: 12px;
       box-shadow: 0 10px 40px rgba(0,0,0,.8);
     }
+
+    /* 🎯 代理邀請碼搜尋與分紅結算工具樣式 */
+    .agent-search-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2);
+    }
+    .agent-search-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 4px;
+    }
+    .agent-search-input {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card-inner);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 170px;
+      text-transform: uppercase;
+    }
+    .agent-search-select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card-inner);
+      color: var(--text);
+      font-size: 13px;
+      min-width: 170px;
+    }
+    .agent-stat-card {
+      background: linear-gradient(135deg, rgba(20,31,53,.98) 0%, rgba(15,23,42,.98) 100%);
+      border: 1px solid rgba(112,243,255,.35);
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin-bottom: 20px;
+      display: none;
+      box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    }
+    .agent-stat-card.show {
+      display: block;
+    }
+    .agent-stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      border-bottom: 1px solid rgba(112,243,255,.15);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .agent-badge-pill {
+      background: rgba(112,243,255,.15);
+      color: var(--blue);
+      border: 1px solid rgba(112,243,255,.3);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .commission-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .commission-item {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .commission-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .commission-val { font-size: 18px; font-weight: 800; color: var(--text); }
+    .commission-val.highlight { color: #f59e0b; font-size: 22px; }
+    .commission-val.green { color: var(--green); }
+    .commission-calc-box {
+      background: rgba(245,158,11,.08);
+      border: 1px solid rgba(245,158,11,.25);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .rate-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .rate-input {
+      width: 65px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: #f59e0b;
+      font-weight: 800;
+      text-align: center;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -408,6 +526,70 @@
 
     <!-- 分頁 1: 訂單審核 -->
     <div id="tab-orders">
+      <!-- 🎯 代理邀請碼搜尋與業績分紅試算工具 -->
+      <div class="agent-search-bar">
+        <div class="agent-search-title">
+          <span>🎯 代理邀請碼搜尋與業績分紅</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:260px;">
+          <input id="agent-referral-input" class="agent-search-input" type="text" placeholder="輸入邀請碼 (例: VIP888)" onkeydown="if(event.key==='Enter')applyAgentSearch()" />
+          <select id="agent-referral-select" class="agent-search-select" onchange="onAgentSelectChange(this.value)">
+            <option value="">-- 快速選擇現有邀請碼 --</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm btn-primary" onclick="applyAgentSearch()">🔍 搜尋業績</button>
+          <button class="btn-sm" id="btn-clear-agent-search" style="display:none;" onclick="clearAgentSearch()">✕ 清除</button>
+        </div>
+      </div>
+
+      <!-- 📊 代理業績即時結算面板 -->
+      <div class="agent-stat-card" id="agent-stat-panel">
+        <div class="agent-stat-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:16px;font-weight:800;color:var(--text);">📊 代理業績與分紅試算</span>
+            <span class="agent-badge-pill" id="agent-pill-code">CODE</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-sm btn-primary" onclick="copyAgentReport()">📋 複製對帳結算單</button>
+            <button class="btn-sm" onclick="clearAgentSearch()">✕ 關閉試算</button>
+          </div>
+        </div>
+
+        <div class="commission-grid">
+          <div class="commission-item">
+            <div class="commission-label">審核通過訂單</div>
+            <div class="commission-val green" id="ag-approved-count">0 筆</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">(待審核: <span id="ag-pending-count">0</span> / 已拒絕: <span id="ag-rejected-count">0</span>)</div>
+          </div>
+          <div class="commission-item">
+            <div class="commission-label">成交累計份數</div>
+            <div class="commission-val" id="ag-approved-qty">0 份</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">(審核通過購買總數)</div>
+          </div>
+          <div class="commission-item">
+            <div class="commission-label">審核通過總業績 (USDT)</div>
+            <div class="commission-val green" id="ag-approved-revenue">0.0 U</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">(待入帳: <span id="ag-pending-revenue">0.0 U</span>)</div>
+          </div>
+          <div class="commission-item" style="background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.4);">
+            <div class="commission-label" style="color:#f59e0b;font-weight:700;">應發分紅金額 (USDT)</div>
+            <div class="commission-val highlight" id="ag-commission-total">0.00 U</div>
+            <div style="font-size:11px;color:#f59e0b;margin-top:2px;" id="ag-commission-note">以 20% 分紅率試算</div>
+          </div>
+        </div>
+
+        <div class="commission-calc-box">
+          <div class="rate-input-wrap">
+            <span>⚙️ <b>自訂代理分紅抽成率：</b></span>
+            <input type="number" id="ag-rate-input" class="rate-input" min="0" max="100" step="1" value="20" oninput="recalcCommission()" />
+            <span>%</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:6px;">(修改比例即時重新試算分紅)</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);" id="ag-time-note"></div>
+        </div>
+      </div>
+
       <div class="filter-bar">
         <div class="filter-group">
           <span class="filter-tag active" data-filter="all" onclick="setFilter('all')">全部 (<span id="cnt-all">0</span>)</span>
@@ -563,6 +745,7 @@
         allPromos = proData.promos || [];
         allPlans  = plaData.plans  || [];
         updateStats();
+        updateAgentReferralSelect();
         renderOrders();
         renderPlans();
         renderPromos();
@@ -590,16 +773,183 @@
       document.getElementById('cnt-rejected').textContent = rejected;
     }
 
+    // --- 🎯 代理邀請碼與分紅計算邏輯 ---
+    let currentReferralSearch = '';
+    let currentCommissionRate = 20;
+
+    function updateAgentReferralSelect() {
+      const select = document.getElementById('agent-referral-select');
+      if (!select) return;
+      const codes = new Set();
+      allOrders.forEach(o => {
+        if (o.referral && String(o.referral).trim()) {
+          codes.add(String(o.referral).trim().toUpperCase());
+        }
+      });
+      allPromos.forEach(p => {
+        if (p.code && String(p.code).trim()) {
+          codes.add(String(p.code).trim().toUpperCase());
+        }
+      });
+      const sortedCodes = Array.from(codes).sort();
+      let html = `<option value="">-- 快速選擇現有邀請碼 (${sortedCodes.length}) --</option>`;
+      sortedCodes.forEach(c => {
+        const selected = (c === currentReferralSearch) ? ' selected' : '';
+        html += `<option value="${c}"${selected}>${c}</option>`;
+      });
+      select.innerHTML = html;
+    }
+
+    function onAgentSelectChange(val) {
+      const input = document.getElementById('agent-referral-input');
+      if (input) input.value = val;
+      applyAgentSearch(val);
+    }
+
+    function applyAgentSearch(overrideCode) {
+      const input = document.getElementById('agent-referral-input');
+      const code = (overrideCode !== undefined ? overrideCode : (input ? input.value : '')).trim().toUpperCase();
+      if (input) input.value = code;
+      currentReferralSearch = code;
+      
+      const clearBtn = document.getElementById('btn-clear-agent-search');
+      if (clearBtn) clearBtn.style.display = currentReferralSearch ? 'inline-block' : 'none';
+
+      const select = document.getElementById('agent-referral-select');
+      if (select) select.value = currentReferralSearch;
+
+      renderOrders();
+    }
+
+    function clearAgentSearch() {
+      currentReferralSearch = '';
+      const input = document.getElementById('agent-referral-input');
+      if (input) input.value = '';
+      const select = document.getElementById('agent-referral-select');
+      if (select) select.value = '';
+      const clearBtn = document.getElementById('btn-clear-agent-search');
+      if (clearBtn) clearBtn.style.display = 'none';
+      const panel = document.getElementById('agent-stat-panel');
+      if (panel) panel.classList.remove('show');
+      renderOrders();
+    }
+
+    function filterByReferral(code) {
+      switchTab('orders');
+      applyAgentSearch(code);
+      const panel = document.getElementById('agent-stat-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function searchPromoPerformance(code) {
+      switchTab('orders');
+      applyAgentSearch(code);
+      const panel = document.getElementById('agent-stat-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function recalcCommission() {
+      const rateInput = document.getElementById('ag-rate-input');
+      if (rateInput) {
+        currentCommissionRate = Math.max(0, Math.min(100, parseFloat(rateInput.value) || 0));
+      }
+      renderAgentCommissionCard();
+    }
+
+    function renderAgentCommissionCard() {
+      const panel = document.getElementById('agent-stat-panel');
+      if (!panel) return;
+      if (!currentReferralSearch) {
+        panel.classList.remove('show');
+        return;
+      }
+      panel.classList.add('show');
+      document.getElementById('agent-pill-code').textContent = currentReferralSearch;
+
+      const matchingOrders = allOrders.filter(o => o.referral && String(o.referral).trim().toUpperCase() === currentReferralSearch);
+      const approvedOrders = matchingOrders.filter(o => o.status === 'approved');
+      const pendingOrders = matchingOrders.filter(o => o.status === 'pending');
+      const rejectedOrders = matchingOrders.filter(o => o.status === 'rejected');
+
+      const approvedCount = approvedOrders.length;
+      const approvedQty = approvedOrders.reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 1), 0);
+      const approvedRevenue = approvedOrders.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+
+      const pendingCount = pendingOrders.length;
+      const pendingRevenue = pendingOrders.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+
+      const rejectedCount = rejectedOrders.length;
+
+      const commission = approvedRevenue * (currentCommissionRate / 100.0);
+
+      document.getElementById('ag-approved-count').textContent = approvedCount + ' 筆';
+      document.getElementById('ag-pending-count').textContent = pendingCount;
+      document.getElementById('ag-rejected-count').textContent = rejectedCount;
+
+      document.getElementById('ag-approved-qty').textContent = approvedQty + ' 份';
+      document.getElementById('ag-approved-revenue').textContent = approvedRevenue.toFixed(1) + ' U';
+      document.getElementById('ag-pending-revenue').textContent = pendingRevenue.toFixed(1) + ' U';
+
+      document.getElementById('ag-commission-total').textContent = commission.toFixed(2) + ' U';
+      document.getElementById('ag-commission-note').textContent = `以 ${currentCommissionRate}% 分紅率試算 (${approvedRevenue.toFixed(1)} U × ${currentCommissionRate}%)`;
+      
+      const timeNote = document.getElementById('ag-time-note');
+      if (timeNote) {
+        timeNote.textContent = `共搜尋到 ${matchingOrders.length} 筆使用邀請碼【${currentReferralSearch}】的訂單`;
+      }
+    }
+
+    function copyAgentReport() {
+      if (!currentReferralSearch) return;
+      const matchingOrders = allOrders.filter(o => o.referral && String(o.referral).trim().toUpperCase() === currentReferralSearch);
+      const approvedOrders = matchingOrders.filter(o => o.status === 'approved');
+      const approvedCount = approvedOrders.length;
+      const approvedQty = approvedOrders.reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 1), 0);
+      const approvedRevenue = approvedOrders.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+      const commission = approvedRevenue * (currentCommissionRate / 100.0);
+      const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+
+      const reportText = 
+`━━━━━━━━━━━━━━━━━━━━
+📊【雙效合一交易機器人 · 代理業績分紅結算單】
+━━━━━━━━━━━━━━━━━━━━
+🔹 代理邀請碼：${currentReferralSearch}
+🔹 結算時間：${nowStr}
+🔹 審核通過成交筆數：${approvedCount} 筆 (共 ${approvedQty} 份方案)
+🔹 審核通過總銷售額：${approvedRevenue.toFixed(2)} USDT
+🔹 代理分紅抽成率：${currentCommissionRate}%
+💰 應發代理分紅金額：${commission.toFixed(2)} USDT
+━━━━━━━━━━━━━━━━━━━━
+感謝您的推廣與合作！如有疑問請聯繫官方客服。`;
+
+      navigator.clipboard.writeText(reportText).then(() => {
+        alert(`✅ 已成功複製【${currentReferralSearch}】代理結算對帳單！\n可以直接貼到 LINE、Telegram 或 Discord 給代理人。`);
+      });
+    }
+
     // --- 訂單渲染 ---
     function renderOrders() {
       const tbody = document.getElementById('orders-body');
       let filtered = allOrders;
-      if (currentFilter !== 'all') {
-        filtered = allOrders.filter(o => o.status === currentFilter);
+
+      // 代理邀請碼搜尋過濾
+      if (currentReferralSearch) {
+        filtered = filtered.filter(o => o.referral && String(o.referral).trim().toUpperCase().includes(currentReferralSearch));
       }
 
+      // 狀態標籤過濾
+      if (currentFilter !== 'all') {
+        filtered = filtered.filter(o => o.status === currentFilter);
+      }
+
+      // 渲染代理分紅統計卡片
+      renderAgentCommissionCard();
+
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">尚無符合的訂單</td></tr>';
+        const hint = currentReferralSearch 
+          ? `尚無符合邀請碼【${escapeHtml(currentReferralSearch)}】的訂單` 
+          : '尚無符合的訂單';
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px;">${hint}</td></tr>`;
         return;
       }
 
@@ -619,6 +969,10 @@
 
         const discountInfo = o.discount ? `<br><small style="color:var(--green);">折抵 -${o.discount}U</small>` : '';
 
+        const referralBadge = o.referral 
+          ? `<span class="copy-pill" style="cursor:pointer;font-weight:700;background:rgba(56,189,248,.15);" onclick="filterByReferral('${escapeHtml(o.referral)}')" title="點擊一鍵搜尋此代理並試算分紅">🎯 ${escapeHtml(o.referral)}</span>` 
+          : '<span style="color:var(--muted);">無</span>';
+
         return `
           <tr>
             <td>
@@ -628,14 +982,14 @@
             <td>
               <b>${escapeHtml(o.name || '-')}</b><br>
               <span style="color:var(--muted);">DC: ${escapeHtml(o.contact || '-')}</span>
-              <span class="copy-pill" onclick="copyText('${escapeHtml(o.contact || '')}')">複製</span>
+              <span class="copy-pill" onclick="copyText('${escapeHtml(o.contact || '')}', '已複製 DC 帳號: ${escapeHtml(o.contact || '')}')">複製</span>
             </td>
             <td>${planName} x ${o.quantity || 1}</td>
             <td>
               <span style="font-size:12px;color:var(--muted);">${o.network || 'BEP20'}</span><br>
               <b style="color:var(--green);">${o.amount} U</b>${discountInfo}
             </td>
-            <td>${o.referral ? `<span style="color:var(--blue);font-weight:700;">${escapeHtml(o.referral)}</span>` : '<span style="color:var(--muted);">無</span>'}</td>
+            <td>${referralBadge}</td>
             <td>${shotEl}</td>
             <td>${statusBadge}</td>
             <td>
@@ -892,6 +1246,7 @@
             <td>${usageTxt}</td>
             <td>${activeBadge}</td>
             <td>
+              <button class="btn-sm btn-primary" style="margin-right:6px;" onclick="searchPromoPerformance('${p.code}')" title="查看並試算此代理邀請碼業績">📊 查業績</button>
               <button class="btn-sm" style="margin-right:6px;" onclick="togglePromo('${p.code}')">${toggleTxt}</button>
               <button class="btn-sm btn-danger" onclick="deletePromo('${p.code}')">刪除</button>
             </td>
@@ -987,9 +1342,12 @@
       document.getElementById('lightbox-modal').classList.remove('show');
     }
 
-    function copyText(txt) {
+    function copyText(txt, msg) {
       if (!txt) return;
-      navigator.clipboard.writeText(txt).then(() => alert('已複製 DC 帳號: ' + txt));
+      navigator.clipboard.writeText(txt).then(() => {
+        if (msg) alert(msg);
+        else alert('已複製: ' + txt);
+      });
     }
 
     function escapeHtml(s) {

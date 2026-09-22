@@ -534,7 +534,7 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 'created_at': int(time.time()),
                 'join_token': join_token,
                 'used': False,
-                'referral': referral if discount > 0 else '',
+                'referral': referral,
                 'screenshot': screenshot
             }
 
