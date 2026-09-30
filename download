@@ -1,0 +1,4 @@
+﻿orders.json
+__pycache__/
+*.pyc
+.env

@@ -19,43 +19,8 @@ PAYMENT_ADDRESSES = {
 }
 
 DEFAULT_PROMOS = {
-    'VIP888': {'code': 'VIP888', 'type': 'fixed', 'value': 10, 'plan': 'all', 'min_qty': 1, 'max_uses': 0, 'active': True, 'used_count': 0},
-    'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'plan': 'all', 'min_qty': 1, 'max_uses': 0, 'active': True, 'used_count': 0}
-}
-
-DEFAULT_PLANS = {
-    '1M': {
-        'id': '1M',
-        'name': '月費方案',
-        'tag': 'Standard',
-        'price': 99.0,
-        'period': 'U / 月',
-        'badge': '',
-        'features': [
-            '全天候 AI 數據與策略分析提醒',
-            '技術面與籌碼面指標推播',
-            'Discord 會員群組加入權限'
-        ],
-        'active': True,
-        'highlight': False,
-        'sort_order': 1
-    },
-    '1Y': {
-        'id': '1Y',
-        'name': '年費方案',
-        'tag': 'Pro Value',
-        'price': 1188.0,
-        'period': 'U / 年',
-        'badge': '推薦 · 買 1 年送 1 個月',
-        'features': [
-            '包含月費方案所有功能與權限',
-            '享有 13 個月完整使用時間 (免費贈送 1 個月)',
-            '專屬優先客服與一對一諮詢服務'
-        ],
-        'active': True,
-        'highlight': True,
-        'sort_order': 2
-    }
+    'VIP888': {'code': 'VIP888', 'type': 'fixed', 'value': 10, 'active': True, 'used_count': 0},
+    'OFF10': {'code': 'OFF10', 'type': 'percent', 'value': 10, 'active': True, 'used_count': 0}
 }
 
 import urllib.request
@@ -101,7 +66,6 @@ def _cloud_set(key, val):
 def _load_data():
     orders = {}
     promos = dict(DEFAULT_PROMOS)
-    plans = dict(DEFAULT_PLANS)
     tokens = {}
 
     # 1. 優先從雲端資料庫讀取（永不丟失）
@@ -109,20 +73,9 @@ def _load_data():
     if cloud_data and isinstance(cloud_data, dict):
         orders = cloud_data.get('orders', {})
         promos = cloud_data.get('promos', DEFAULT_PROMOS)
-        plans = cloud_data.get('plans', DEFAULT_PLANS)
-        for p in promos.values():
-            p.setdefault('plan', 'all')
-            p.setdefault('min_qty', 1)
-            p.setdefault('max_uses', 0)
-        for pid, p in list(plans.items()):
-            p.setdefault('id', pid)
-            p.setdefault('active', True)
-            p.setdefault('highlight', False)
-            p.setdefault('sort_order', 1)
-            p.setdefault('features', [])
         tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
-        print(f"[OK] Loaded {len(orders)} orders, {len(promos)} promos, {len(plans)} plans from Cloud DB.")
-        return orders, promos, tokens, plans
+        print(f"[OK] Loaded {len(orders)} orders and {len(promos)} promos from Cloud DB.")
+        return orders, promos, tokens
 
     # 2. 本機檔案備案
     if DATA_FILE.exists():
@@ -130,25 +83,14 @@ def _load_data():
             raw = json.loads(DATA_FILE.read_text(encoding='utf-8'))
             orders = raw.get('orders', {})
             promos = raw.get('promos', DEFAULT_PROMOS)
-            plans = raw.get('plans', DEFAULT_PLANS)
-            for p in promos.values():
-                p.setdefault('plan', 'all')
-                p.setdefault('min_qty', 1)
-                p.setdefault('max_uses', 0)
-            for pid, p in list(plans.items()):
-                p.setdefault('id', pid)
-                p.setdefault('active', True)
-                p.setdefault('highlight', False)
-                p.setdefault('sort_order', 1)
-                p.setdefault('features', [])
             tokens = {o['join_token']: oid for oid, o in orders.items() if 'join_token' in o}
         except Exception:
             pass
-    return orders, promos, tokens, plans
+    return orders, promos, tokens
 
 def _save_data():
     with _lock:
-        payload = {'orders': ORDERS, 'promos': PROMOS, 'plans': PLANS}
+        payload = {'orders': ORDERS, 'promos': PROMOS}
         # 存本機
         try:
             DATA_FILE.write_text(
@@ -161,7 +103,7 @@ def _save_data():
         if UPSTASH_URL and UPSTASH_TOKEN:
             threading.Thread(target=_cloud_set, args=('dcbot_store', payload), daemon=True).start()
 
-ORDERS, PROMOS, JOIN_TOKENS, PLANS = _load_data()
+ORDERS, PROMOS, JOIN_TOKENS = _load_data()
 
 class ApiHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -239,8 +181,6 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 return
             code = str(data.get('code', '')).strip().upper()
             amount = float(data.get('amount', 0))
-            plan = str(data.get('plan', '')).strip()
-            quantity = int(data.get('quantity', 1) or 1)
             if not code:
                 self._send_json(400, {'ok': False, 'message': '請提供優惠碼'})
                 return
@@ -248,28 +188,6 @@ class ApiHandler(SimpleHTTPRequestHandler):
             if not promo or not promo.get('active', True):
                 self._send_json(200, {'ok': True, 'valid': False, 'message': '優惠碼不存在或已停用'})
                 return
-
-            # 方案限制檢查
-            target_plan = promo.get('plan', 'all')
-            if target_plan != 'all' and plan and target_plan != plan:
-                target_obj = PLANS.get(target_plan)
-                plan_text = target_obj.get('name', target_plan) if target_obj else target_plan
-                self._send_json(200, {'ok': True, 'valid': False, 'message': f'此優惠碼僅限「{plan_text}」使用'})
-                return
-
-            # 最低購買份數門檻檢查
-            min_qty = int(promo.get('min_qty', 1) or 1)
-            if quantity < min_qty:
-                self._send_json(200, {'ok': True, 'valid': False, 'message': f'此優惠碼需購買滿 {min_qty} 份以上方可使用 (目前選擇 {quantity} 份)'})
-                return
-
-            # 使用次數上限檢查
-            max_uses = int(promo.get('max_uses', 0) or 0)
-            used_count = int(promo.get('used_count', 0) or 0)
-            if max_uses > 0 and used_count >= max_uses:
-                self._send_json(200, {'ok': True, 'valid': False, 'message': '此優惠碼已達使用數量上限（名額已額滿）'})
-                return
-
             p_type = promo.get('type', 'fixed')
             p_val = float(promo.get('value', 0))
             if p_type == 'percent':
@@ -328,25 +246,10 @@ class ApiHandler(SimpleHTTPRequestHandler):
             if action == 'create':
                 p_type = str(data.get('type', 'fixed'))
                 p_val = float(data.get('value', 10))
-                p_plan = str(data.get('plan', 'all')).strip()
-                if p_plan != 'all' and p_plan not in PLANS:
-                    p_plan = 'all'
-                try:
-                    p_min_qty = max(1, int(data.get('min_qty', 1) or 1))
-                except (ValueError, TypeError):
-                    p_min_qty = 1
-                try:
-                    p_max_uses = max(0, int(data.get('max_uses', 0) or 0))
-                except (ValueError, TypeError):
-                    p_max_uses = 0
-
                 PROMOS[code] = {
                     'code': code,
                     'type': p_type,
                     'value': p_val,
-                    'plan': p_plan,
-                    'min_qty': p_min_qty,
-                    'max_uses': p_max_uses,
                     'active': True,
                     'used_count': 0
                 }
@@ -370,92 +273,6 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {'ok': False, 'message': '優惠碼不存在'})
                 return
 
-        # 4.5. 管理員：方案管理 (新增/編輯/上下架/刪除)
-        if parsed.path == '/api/admin/plans':
-            if not self._check_admin_auth():
-                self._send_json(401, {'ok': False, 'message': '未授權'})
-                return
-            data, error = self._parse_json_body()
-            if error or not isinstance(data, dict):
-                self._send_json(400, {'ok': False, 'message': '請求格式錯誤'})
-                return
-            action = data.get('action', 'create')
-            plan_id = str(data.get('id', '')).strip().upper()
-            if not plan_id:
-                self._send_json(400, {'ok': False, 'message': '方案代碼不能為空'})
-                return
-
-            if action in ['create', 'update']:
-                name = str(data.get('name', '')).strip()
-                if not name:
-                    self._send_json(400, {'ok': False, 'message': '方案名稱不能為空'})
-                    return
-                try:
-                    price = float(data.get('price', 0))
-                except (ValueError, TypeError):
-                    price = 0.0
-                period = str(data.get('period', 'U / 月')).strip() or 'U / 月'
-                tag = str(data.get('tag', '')).strip()
-                badge = str(data.get('badge', '')).strip()
-                highlight = bool(data.get('highlight', False))
-                try:
-                    sort_order = int(data.get('sort_order', 1))
-                except (ValueError, TypeError):
-                    sort_order = 1
-
-                raw_features = data.get('features', [])
-                if isinstance(raw_features, str):
-                    features = [f.strip() for f in raw_features.split('\n') if f.strip()]
-                elif isinstance(raw_features, list):
-                    features = [str(f).strip() for f in raw_features if str(f).strip()]
-                else:
-                    features = []
-
-                if action == 'create' and plan_id in PLANS:
-                    self._send_json(400, {'ok': False, 'message': f'方案代碼 {plan_id} 已存在，請使用不同代碼'})
-                    return
-
-                active = True
-                if action == 'update' and plan_id in PLANS:
-                    active = PLANS[plan_id].get('active', True)
-
-                PLANS[plan_id] = {
-                    'id': plan_id,
-                    'name': name,
-                    'tag': tag,
-                    'price': price,
-                    'period': period,
-                    'badge': badge,
-                    'features': features,
-                    'active': active,
-                    'highlight': highlight,
-                    'sort_order': sort_order
-                }
-                _save_data()
-                all_plans = sorted(list(PLANS.values()), key=lambda x: x.get('sort_order', 0))
-                self._send_json(200, {'ok': True, 'message': f'方案 {name} ({plan_id}) 已{"更新" if action == "update" else "建立"}', 'plans': all_plans})
-                return
-
-            elif action == 'toggle':
-                if plan_id in PLANS:
-                    PLANS[plan_id]['active'] = not PLANS[plan_id].get('active', True)
-                    _save_data()
-                    all_plans = sorted(list(PLANS.values()), key=lambda x: x.get('sort_order', 0))
-                    self._send_json(200, {'ok': True, 'message': '方案狀態已變更', 'plans': all_plans})
-                    return
-                self._send_json(404, {'ok': False, 'message': '方案不存在'})
-                return
-
-            elif action == 'delete':
-                if plan_id in PLANS:
-                    del PLANS[plan_id]
-                    _save_data()
-                    all_plans = sorted(list(PLANS.values()), key=lambda x: x.get('sort_order', 0))
-                    self._send_json(200, {'ok': True, 'message': f'方案 {plan_id} 已刪除', 'plans': all_plans})
-                    return
-                self._send_json(404, {'ok': False, 'message': '方案不存在'})
-                return
-
         # 5. 建立訂單 (用戶前端提交)
         if parsed.path == '/api/orders':
             data, error = self._parse_json_body()
@@ -472,39 +289,34 @@ class ApiHandler(SimpleHTTPRequestHandler):
             screenshot = str(data.get('screenshot', '')).strip()
             referral = str(data.get('referral', '')).strip().upper()
 
-            if quantity < 1 or quantity > 50:
-                self._send_json(400, {'ok': False, 'message': '購買數量需在 1 到 50 之間'})
+            if quantity < 1 or quantity > 20:
+                self._send_json(400, {'ok': False, 'message': 'Quantity must be between 1 and 20'})
                 return
 
-            plan_obj = PLANS.get(plan)
-            if not plan_obj or not plan_obj.get('active', True):
-                self._send_json(400, {'ok': False, 'message': '無效或已下架的方案'})
+            if plan == '1Y':
+                if quantity > 2:
+                    self._send_json(400, {'ok': False, 'message': '1Y plan quantity must be between 1 and 2'})
+                    return
+                base_amount = 1188
+            elif plan == '1M':
+                base_amount = 99
+            else:
+                self._send_json(400, {'ok': False, 'message': 'Unsupported plan'})
                 return
 
-            base_amount = float(plan_obj.get('price', 0))
             subtotal = base_amount * quantity
             discount = 0.0
 
             # 套用優惠碼
             if referral and referral in PROMOS and PROMOS[referral].get('active', True):
                 promo = PROMOS[referral]
-                target_plan = promo.get('plan', 'all')
-                min_qty = int(promo.get('min_qty', 1) or 1)
-                max_uses = int(promo.get('max_uses', 0) or 0)
-                used_count = int(promo.get('used_count', 0) or 0)
-
-                plan_ok = (target_plan == 'all' or target_plan == plan)
-                qty_ok = (quantity >= min_qty)
-                uses_ok = (max_uses == 0 or used_count < max_uses)
-
-                if plan_ok and qty_ok and uses_ok:
-                    p_type = promo.get('type', 'fixed')
-                    p_val = float(promo.get('value', 0))
-                    if p_type == 'percent':
-                        discount = round(subtotal * (p_val / 100.0), 2)
-                    else:
-                        discount = min(float(subtotal), p_val)
-                    promo['used_count'] = used_count + 1
+                p_type = promo.get('type', 'fixed')
+                p_val = float(promo.get('value', 0))
+                if p_type == 'percent':
+                    discount = round(subtotal * (p_val / 100.0), 2)
+                else:
+                    discount = min(float(subtotal), p_val)
+                promo['used_count'] = promo.get('used_count', 0) + 1
 
             amount = max(0.0, subtotal - discount)
 
@@ -534,7 +346,7 @@ class ApiHandler(SimpleHTTPRequestHandler):
                 'created_at': int(time.time()),
                 'join_token': join_token,
                 'used': False,
-                'referral': referral,
+                'referral': referral if discount > 0 else '',
                 'screenshot': screenshot
             }
 
@@ -565,22 +377,6 @@ class ApiHandler(SimpleHTTPRequestHandler):
 
         if parsed.path == '/api/health':
             self._send_json(200, {'ok': True, 'message': 'ready'})
-            return
-
-        # 公開 API：獲取所有上架中方案
-        if parsed.path == '/api/plans':
-            active_plans = [p for p in PLANS.values() if p.get('active', True)]
-            active_plans = sorted(active_plans, key=lambda x: x.get('sort_order', 0))
-            self._send_json(200, {'ok': True, 'plans': active_plans})
-            return
-
-        # 管理員 API：獲取所有方案 (含已下架)
-        if parsed.path == '/api/admin/plans':
-            if not self._check_admin_auth():
-                self._send_json(401, {'ok': False, 'message': '未授權'})
-                return
-            all_plans = sorted(list(PLANS.values()), key=lambda x: x.get('sort_order', 0))
-            self._send_json(200, {'ok': True, 'plans': all_plans})
             return
 
         # 管理員 API：獲取所有訂單
